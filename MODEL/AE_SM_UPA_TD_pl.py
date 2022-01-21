@@ -7,10 +7,13 @@ print('\n\n')
 
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
 sys.path.append( os.path.join( os.getcwd(), 'utls' ) )
 sys.path.append( os.path.join( os.getcwd(), '4dvar' ) )
 
+import pickle
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -24,7 +27,6 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from sklearn.metrics import r2_score
 
-from GLOBALS import GLOBALS
 from tutls import NormLoss, xavier_weights_initialization
 from dutls import MMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
@@ -177,19 +179,10 @@ COLOCATED   = False
 TRAIN       = True
 TEST        = True
 
-MODALITY    = 'UPA'
-TEST_SET    = 'only_{}'.format(MODALITY)
-TIME_TAG    = 'TI'
 FORMAT_SIZE = 24
 MODEL_NAME  = 'AE_SM_UPA_TD'
-gvs = GLOBALS('AE_SM_{}'.format(MODALITY), 'W1M3A', TIME_TAG)
-# PATH_DATA = gvs.get_constant('PATH_DATA')
-PATH_DATA   = os.path.join(os.getcwd(), 'Data')
-PATH_MODEL = gvs.get_constant('PATH_MODEL')
-gvs.set_constant('FORMAT_SIZE', FORMAT_SIZE)
-gvs.set_constant('LATENT_SPACE', 'none')
-gvs.set_constant('TIME_TAG', TIME_TAG)
-gvs.save_dict()
+PATH_DATA   = os.getenv('PATH_DATA')
+PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
 EPOCHS      = 200
@@ -296,6 +289,8 @@ for run in range(RUNS):
     #end
 #end
 
+
+''' Median of the prediction to produce the voted-by-models prediction '''
 preds = torch.Tensor( np.median( np.array(predictions), axis = 0 ) )
 wdata = torch.Tensor( u_data )
 windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = True)
@@ -318,13 +313,11 @@ hyperparams = {
     'PRED_ERROR'  : pred_error_metric.item(),
     'R_SQUARED'   : r2_metric.item()
 }
-with open(os.path.join(PATH_MODEL, 'CONSTANTS', 'HYPERPARAMS.json'), 'w') as filestream:
+with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
     json.dump(hyperparams, filestream, indent = 4)
 #end
 filestream.close()
 
-plt.close('all')
-import pickle
 pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
 
 with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:

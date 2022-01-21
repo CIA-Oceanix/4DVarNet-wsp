@@ -13,6 +13,7 @@ load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 sys.path.append( os.path.join( os.getcwd(), 'utls' ) )
 sys.path.append( os.path.join( os.getcwd(), '4dvar' ) )
 
+import pickle
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -287,7 +288,7 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
-PLOTS       = True
+PLOTS       = False
 RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
@@ -468,16 +469,9 @@ with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
 #end
 filestream.close()
 
-plt.close('all')
-import pickle
-if FIXED_POINT:
-    titleappend = '{}_fp1it'.format(PRIOR)
-else:
-    titleappend = '{}_gbs'.format(PRIOR)
-#end
-pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}_{}.pkl'.format(MODEL_NAME, titleappend)), 'wb'))
+pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
 
-with open( os.path.join(os.getcwd(), 'Evaluation', '{}_{}.txt'.format(MODEL_NAME, titleappend)), 'w' ) as f:
+with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
     f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
     f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))

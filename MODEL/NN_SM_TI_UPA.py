@@ -7,10 +7,13 @@ print('\n\n')
 
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
 sys.path.append( os.path.join( os.getcwd(), 'utls' ) )
 sys.path.append( os.path.join( os.getcwd(), '4dvar' ) )
 
+import pickle
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -148,18 +151,10 @@ COLOCATED   = False
 TRAIN       = True
 TEST        = True
 
-MODALITY    = 'UPA'
-TEST_SET    = 'only_{}'.format(MODALITY)
-TIME_TAG    = 'TI'
 FORMAT_SIZE = 24
 MODEL_NAME  = 'NN_SM_UPA_TI'
-gvs = GLOBALS('NN_SM_{}'.format(MODALITY), 'W1M3A', TIME_TAG)
-PATH_DATA  = gvs.get_constant('PATH_DATA')
-PATH_MODEL = gvs.get_constant('PATH_MODEL')
-gvs.set_constant('FORMAT_SIZE', FORMAT_SIZE)
-gvs.set_constant('LATENT_SPACE', 'none')
-gvs.set_constant('TIME_TAG', TIME_TAG)
-gvs.save_dict()
+PATH_DATA   = os.getenv('PATH_DATA')
+PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
 EPOCHS      = 200
@@ -269,7 +264,7 @@ hyperparams = {
     'PRED_ERROR'  : pred_error_metric.item(),
     'R_SQUARED'   : r2_metric.item()
 }
-with open(os.path.join(PATH_MODEL, 'CONSTANTS', 'HYPERPARAMS.json'), 'w') as filestream:
+with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
     json.dump(hyperparams, filestream, indent = 4)
 #end
 filestream.close()
