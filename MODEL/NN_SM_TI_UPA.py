@@ -231,8 +231,8 @@ for run in range(RUNS):
             plot_WS_scatter(lit_model.samples_to_save, 'y')
         #end
         
-        u_data = lit_model.samples_to_save[0]['u_data'].detach().numpy()
-        u_reco = lit_model.samples_to_save[0]['u_reco'].detach().numpy()
+        u_data = lit_model.samples_to_save[0]['u_data'].cpu().detach().numpy()
+        u_reco = lit_model.samples_to_save[0]['u_reco'].cpu().detach().numpy()
         
         pred_error_metric = NormLoss((u_data - u_reco), mask = None, divide = True, rmse = True)
         r2_metric = r2_score(u_data.reshape(-1,1), u_reco.reshape(-1,1))
