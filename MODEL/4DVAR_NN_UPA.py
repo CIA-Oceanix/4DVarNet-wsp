@@ -289,7 +289,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 1
+RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -301,7 +301,7 @@ PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
 EPOCHS      = 200
-BATCH_SIZE  = 128
+BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
 N_SOL_ITER  = 5

@@ -27,7 +27,6 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from sklearn.metrics import r2_score
 
-from GLOBALS import GLOBALS
 from tutls import NormLoss, RegressionNetwork
 from dutls import MMData
 from gutls import plot_WS, plot_WS_scatter
@@ -149,7 +148,7 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
-PLOTS       = True
+PLOTS       = False
 RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
@@ -169,7 +168,6 @@ WEIGHT_DATA = 0.
 WEIGHT_PRED = 1.
 MODEL_LR    = 5e-4
 MODEL_WD    = 1e-6
-KERNEL_SIZE = 3
 
 
 '''

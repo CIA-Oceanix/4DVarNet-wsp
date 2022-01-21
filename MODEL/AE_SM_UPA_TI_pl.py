@@ -200,7 +200,7 @@ PATH_MODEL  = os.getenv('PATH_MODEL')
 # HPARAMS
 if TAYLOR_DS: # NE PAS TOUCHER !
     EPOCHS      = 200
-    BATCH_SIZE  = 128
+    BATCH_SIZE  = 32
     LATENT_DIM  = 20
     DROPOUT     = 0.
     WEIGHT_DATA = 0.25
@@ -214,8 +214,8 @@ else:
     BATCH_SIZE  = 128
     LATENT_DIM  = 20
     DROPOUT     = 0.
-    WEIGHT_DATA = 0.25
-    WEIGHT_PRED = 1.
+    WEIGHT_DATA = 0.5
+    WEIGHT_PRED = 1.5
     MODEL_LR    = 1e-3
     MODEL_WD    = 1e-6
     WINDMAP_LR  = 1e-3
