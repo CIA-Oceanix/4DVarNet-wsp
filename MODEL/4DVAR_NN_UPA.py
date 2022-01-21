@@ -21,6 +21,7 @@ plt.style.use('seaborn-white')
 import json
 
 import torch
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
@@ -32,7 +33,6 @@ from dutls import MMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 import solver as NN_4DVar
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 class AutoEncoder(nn.Module):
