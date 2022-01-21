@@ -389,20 +389,20 @@ class Model_Var_Cost(nn.Module):
         
         # parameters for variational cost
         if learnable_params:
-            self.alphaObs = torch.nn.Parameter(torch.Tensor(1. * np.ones((self.dim_obs,1))))
-            self.alphaReg = torch.nn.Parameter(torch.Tensor([1.]))
+            self.alphaObs = torch.nn.Parameter(torch.Tensor(1. * np.ones((self.dim_obs,1)))).to(device)
+            self.alphaReg = torch.nn.Parameter(torch.Tensor([1.])).to(device)
             if self.dim_obs_channel[0] == 0 :
-                self.WObs = torch.nn.Parameter(torch.Tensor(np.ones((self.dim_obs,ShapeData[0]))))
+                self.WObs = torch.nn.Parameter(torch.Tensor(np.ones((self.dim_obs,ShapeData[0])))).to(device)
                 self.dim_obs_channel = ShapeData[0] * np.ones((self.dim_obs,))
             else:
-                self.WObs = torch.nn.Parameter(torch.Tensor(np.ones((self.dim_obs,np.max(self.dim_obs_channel)))))
+                self.WObs = torch.nn.Parameter(torch.Tensor(np.ones((self.dim_obs,np.max(self.dim_obs_channel))))).to(device)
             #end
             self.WReg = torch.nn.Parameter(torch.Tensor(np.ones(self.dim_state,)))
             self.epsObs = torch.nn.Parameter(0.1 * torch.Tensor(np.ones((self.dim_obs,))))
             self.epsReg = torch.nn.Parameter(torch.Tensor([0.1]))
         else:
-            self.alphaObs = torch.Tensor([alphaObs])
-            self.alphaReg = torch.Tensor([alphaReg])
+            self.alphaObs = torch.Tensor([alphaObs]).to(device)
+            self.alphaReg = torch.Tensor([alphaReg]).to(device)
             if self.dim_obs_channel[0] == 0 :
                 self.WObs = torch.Tensor(np.ones((self.dim_obs,ShapeData[0])))
                 self.dim_obs_channel = ShapeData[0] * np.ones((self.dim_obs,))

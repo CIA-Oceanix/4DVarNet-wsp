@@ -32,6 +32,8 @@ from dutls import MMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 import solver as NN_4DVar
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 class AutoEncoder(nn.Module):
     

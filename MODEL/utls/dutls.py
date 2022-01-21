@@ -97,8 +97,8 @@ class MMData(Dataset):
             # self.X[i]     = torch.Tensor(self.X[i]).type(self.dtype)
             self.Y[i]     = torch.Tensor(self.Y[i]).type(self.dtype)
             # self.W[i]     = torch.Tensor(self.W[i]).type(self.dtype)
-            self.U[i]     = torch.Tensor([self.U[i]]).type(self.dtype)
-            # self.U[i]     = torch.Tensor(self.U[i]).type(self.dtype)
+            # self.U[i]     = torch.Tensor([self.U[i]]).type(self.dtype)
+            self.U[i]     = torch.Tensor(self.U[i]).type(self.dtype)
         #end
     #end
     
