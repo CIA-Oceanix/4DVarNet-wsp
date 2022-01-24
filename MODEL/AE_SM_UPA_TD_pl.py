@@ -31,6 +31,14 @@ from tutls import NormLoss, xavier_weights_initialization
 from dutls import MMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 
+if torch.cuda.is_available():
+    device = 'cuda'
+    gpus = -1
+else:
+    device = 'cpu'
+    gpus = 0
+#end
+
 
 class AutoEncoder(nn.Module):
     
@@ -245,7 +253,7 @@ for run in range(RUNS):
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1}
         
         lit_model = LitModel(network, preprocess_params = test_set.preprocess_params)
-        trainer = pl.Trainer(**profiler_kwargs, progress_bar_refresh_rate = 10)
+        trainer = pl.Trainer(**profiler_kwargs)
         trainer.fit(lit_model, train_loader)
         
         if RUNS == 1:

@@ -21,7 +21,6 @@ plt.style.use('seaborn-white')
 import json
 
 import torch
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
@@ -32,6 +31,14 @@ from tutls import L2NormLoss, NormLoss, xavier_weights_initialization
 from dutls import MMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 import solver as NN_4DVar
+
+if torch.cuda.is_available():
+    device = 'cuda'
+    gpus = -1
+else:
+    device = 'cpu'
+    gpus = 0
+#end
 
 
 
@@ -198,7 +205,7 @@ class LitModel(pl.LightningModule):
             if FIXED_POINT:
                 outputs = self.Phi(data_input) # Fixed point
             else:
-                outputs, hidden, cell, normgrad = self.model(inputs_init, data_input, mask_input)
+                outputs, hidden, cell, normgrad = self.model(inputs_init, data_input, mask_input)                
             #end
             
             '''Split UPA and windspeed reconstructions and predictions and 
@@ -316,7 +323,7 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
-FIXED_POINT = True
+FIXED_POINT = False
 TRMSE       = 3
 
 print('Prior       : {}'.format(PRIOR))
@@ -390,8 +397,8 @@ for run in range(RUNS):
                               preprocess_params = test_set.preprocess_params
         )
         
-        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1}
-        trainer = pl.Trainer(**profiler_kwargs, progress_bar_refresh_rate = 10)
+        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
+        trainer = pl.Trainer(**profiler_kwargs)
         
         lit_model.test_loader_to_val = test_loader
         trainer.fit(lit_model, train_loader)
