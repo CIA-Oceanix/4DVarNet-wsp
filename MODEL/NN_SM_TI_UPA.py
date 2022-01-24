@@ -205,7 +205,8 @@ for run in range(RUNS):
                 )
         )
         
-        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
+        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1,
+                           'gpus' : gpus}
         
         lit_model = LitModel(network, preprocess_params = test_set.preprocess_params)
         trainer = pl.Trainer(**profiler_kwargs)
@@ -275,8 +276,6 @@ with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
 #end
 filestream.close()
 
-plt.close('all')
-import pickle
 pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
 
 with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
