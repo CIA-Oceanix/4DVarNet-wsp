@@ -196,7 +196,7 @@ DATA_TITLE  = '2011'
 PLOTS       = False
 RUNS        = 10
 COLOCATED   = False
-TAYLOR_DS   = True
+TAYLOR_DS   = False
 TRAIN       = True
 TEST        = True
 
