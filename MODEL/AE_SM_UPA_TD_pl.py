@@ -251,7 +251,7 @@ for run in range(RUNS):
         )
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 
-                           'gpus' : gpus, 'accelerator' : 'ddp_spawn'}
+                           'gpus' : gpus}
         
         lit_model = LitModel(network, preprocess_params = test_set.preprocess_params)
         trainer = pl.Trainer(**profiler_kwargs)
