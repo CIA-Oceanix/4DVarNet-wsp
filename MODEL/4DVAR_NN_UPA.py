@@ -310,7 +310,7 @@ RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
-SAVE_OUTS   = True
+SAVE_OUTS   = False
 SAVE_MODEL  = True
 LOAD_PTMOD  = False
 
