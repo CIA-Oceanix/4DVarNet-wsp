@@ -306,13 +306,13 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 1
+RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
-SAVE_OUTS   = False
+SAVE_OUTS   = True
 SAVE_MODEL  = True
-LOAD_PTMOD  = False
+LOAD_PTMOD  = True
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -405,7 +405,7 @@ for run in range(RUNS):
         #end
         
         if LOAD_PTMOD:
-            model_file = open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb')
+            model_file = open(os.path.join(PATH_MODEL, '{}_savedmod.pkl'.format(MODEL_NAME)), 'rb')
             lit_model = torch.load(model_file)['model']
         else:
             lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
