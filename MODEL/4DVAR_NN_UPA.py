@@ -38,8 +38,7 @@ if torch.cuda.is_available():
 else:
     device = 'cpu'
     gpus = 0
-#end
-
+#end   
 
 
 class AutoEncoder(nn.Module):
@@ -111,6 +110,7 @@ class LitModel(pl.LightningModule):
         self.preprocess_params = preprocess_params
         self.test_rmse = np.float64(0.)
         self.samples_to_save = list()
+        self.__trained = False
         
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
             
@@ -128,6 +128,14 @@ class LitModel(pl.LightningModule):
             shapeData,                        # Shape data
             self.hparams.n_solver_iter        # Solver iterations
             )
+    #end
+    
+    def set_trained(self):
+        self.__trained = True
+    #end
+    
+    def is_trained(self):
+        return self.__trained
     #end
     
     def forward(self, input_data, iterations = None, phase = 'train'):
@@ -298,10 +306,13 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
+SAVE_OUTS   = True
+SAVE_MODEL  = True
+LOAD_PTMOD  = False
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -323,11 +334,11 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
-FIXED_POINT = True
-TRMSE       = 3
+FIXED_POINT = False
 
-print('Prior       : {}'.format(PRIOR))
-print('Fixed point : {}\n\n'.format(FIXED_POINT))
+
+print('Prior        : {}'.format(PRIOR))
+print('Fixed point  : {}\n\n'.format(FIXED_POINT))
 MODEL_NAME  = '{}_{}'.format(MODEL_NAME, PRIOR)
 if FIXED_POINT:
     MODEL_NAME = '{}_fp1it'.format(MODEL_NAME)
@@ -393,9 +404,15 @@ for run in range(RUNS):
             )
         #end
         
-        lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
-                              preprocess_params = test_set.preprocess_params
-        )
+        if LOAD_PTMOD:
+            model_file = open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb')
+            lit_model = torch.load(model_file)['model']
+        else:
+            lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
+                                  preprocess_params = test_set.preprocess_params
+            )
+            lit_model.set_trained()
+        #end
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
         trainer = pl.Trainer(**profiler_kwargs)
@@ -403,7 +420,7 @@ for run in range(RUNS):
         lit_model.test_loader_to_val = test_loader
         trainer.fit(lit_model, train_loader)
         
-        if RUNS == 1:
+        if SAVE_MODEL:
             torch.save({'trainer' : trainer, 'model' : lit_model, 
                         'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
                         open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb'))
@@ -413,7 +430,7 @@ for run in range(RUNS):
     ''' MODEL TEST '''
     if TEST:
         
-        if RUNS == 1:
+        if SAVE_MODEL:
             saved_model = torch.load( open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb') )
             trainer = saved_model['trainer']
             lit_model = saved_model['model']
@@ -427,7 +444,7 @@ for run in range(RUNS):
         lit_model.model.eval()
         trainer.test(lit_model, test_loader)
         
-        if RUNS == 1 and PLOTS:
+        if PLOTS:
             plot_UPA(lit_model.samples_to_save)
             plot_WS(lit_model.samples_to_save)
             plot_WS_scatter(lit_model.samples_to_save, 'y')
@@ -455,35 +472,36 @@ windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = T
 windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
 
 
-''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
-hyperparams = {
-    'EPOCHS'      : EPOCHS,
-    'BATCH_SIZE'  : BATCH_SIZE,
-    'LATENT_DIM'  : LATENT_DIM,
-    'DIM_LSTM'    : DIM_LSTM,
-    'N_SOL_ITER'  : N_SOL_ITER,
-    'N_4DV_ITER'  : N_4DV_ITER,
-    'DROPOUT'     : DROPOUT,
-    'WEIGHT_DATA' : WEIGHT_DATA,
-    'WEIGHT_PRED' : WEIGHT_PRED,
-    'SOLVER_LR'   : SOLVER_LR,
-    'SOLVER_WD'   : SOLVER_WD,
-    'PHI_LR'      : PHI_LR,
-    'PHI_WD'      : PHI_WD,
-    'PRED_ERROR'  : pred_error_metric.item(),
-    'R_SQUARED'   : r2_metric.item()
-}
-with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
-    json.dump(hyperparams, filestream, indent = 4)
+if SAVE_OUTS:
+    ''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
+    hyperparams = {
+        'EPOCHS'      : EPOCHS,
+        'BATCH_SIZE'  : BATCH_SIZE,
+        'LATENT_DIM'  : LATENT_DIM,
+        'DIM_LSTM'    : DIM_LSTM,
+        'N_SOL_ITER'  : N_SOL_ITER,
+        'N_4DV_ITER'  : N_4DV_ITER,
+        'DROPOUT'     : DROPOUT,
+        'WEIGHT_DATA' : WEIGHT_DATA,
+        'WEIGHT_PRED' : WEIGHT_PRED,
+        'SOLVER_LR'   : SOLVER_LR,
+        'SOLVER_WD'   : SOLVER_WD,
+        'PHI_LR'      : PHI_LR,
+        'PHI_WD'      : PHI_WD,
+        'PRED_ERROR'  : pred_error_metric.item(),
+        'R_SQUARED'   : r2_metric.item()
+    }
+    with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
+        json.dump(hyperparams, filestream, indent = 4)
+    #end
+    filestream.close()
+    
+    pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
+    
+    with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
+        f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
+        f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+                                                      windspeed_rmses['only_UPA']['u'].std()))
+        f.write('Median     ; {:.4f}\n'.format(windspeed_baggr))
+    f.close()
 #end
-filestream.close()
-
-pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
-
-with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
-    f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-    f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
-                                                  windspeed_rmses['only_UPA']['u'].std()))
-    f.write('Median     ; {:.4f}\n'.format(windspeed_baggr))
-f.close()
-
