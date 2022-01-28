@@ -25,6 +25,7 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 from sklearn.metrics import r2_score
 
 from tutls import L2NormLoss, NormLoss, xavier_weights_initialization
@@ -38,7 +39,7 @@ if torch.cuda.is_available():
 else:
     device = 'cpu'
     gpus = 0
-#end   
+#end
 
 
 class AutoEncoder(nn.Module):
@@ -111,6 +112,7 @@ class LitModel(pl.LightningModule):
         self.test_rmse = np.float64(0.)
         self.samples_to_save = list()
         self.__trained = False
+        self.loss_val = np.float64(0.)
         
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
             
@@ -268,6 +270,15 @@ class LitModel(pl.LightningModule):
         return loss
     #end
     
+    def validation_step(self, batch, batch_idx):
+        
+        metrics, outs = self.compute_loss(batch)
+        val_loss = metrics['loss_pred']
+        
+        self.log('val_loss', val_loss, on_step = False, on_epoch = True, prog_bar = False)        
+        return val_loss
+    #end
+    
     def test_step(self, batch, batch_idx):
         
         if batch_idx >= 1:
@@ -306,13 +317,13 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
 SAVE_OUTS   = True
 SAVE_MODEL  = True
-LOAD_PTMOD  = True
+LOAD_WUMOD  = True
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -367,6 +378,9 @@ for run in range(RUNS):
     test_set = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
+    val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
+    
     N = train_set.get_modality_data_size('y')
     Nu = train_set.get_modality_data_size('u')
     
@@ -399,30 +413,50 @@ for run in range(RUNS):
                 nn.Sequential(
                     nn.Conv1d(N + Nu, 128, kernel_size = 3, padding = 'same'),
                     nn.LeakyReLU(0.1),
-                    nn.Conv1d(128, N + Nu, kernel_size = 3, padding = 'same')
+                    nn.Conv1d(128, N + Nu, kernel_size = 3, padding = 'same') 
                 )
             )
         #end
         
-        if LOAD_PTMOD:
-            model_file = open(os.path.join(PATH_MODEL, '{}_savedmod.pkl'.format(MODEL_NAME)), 'rb')
-            lit_model = torch.load(model_file)['model']
+        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
+        
+        if LOAD_WUMOD:
+            
+            ''' Load a warmed-up model '''
+            model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'ckpt_model.pkl'), 'rb')
+            lit_model_params = torch.load(model_file)['state_dict']
+            lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
+                                  preprocess_params = test_set.preprocess_params
+            )
+            lit_model.load_state_dict(lit_model_params)
+            
+            trainer = pl.Trainer(**profiler_kwargs)
+            
         else:
+            
+            ''' Initialize a new model and specify the callback '''
             lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
                                   preprocess_params = test_set.preprocess_params
             )
             lit_model.set_trained()
+            
+            model_checkpoint = ModelCheckpoint(
+                    monitor = 'val_loss',
+                    dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
+                    filename = 'ckpt_model.pkl',
+                    save_top_k = 1,
+                    mode = 'min'
+            )
+            
+            trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
         #end
         
-        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
-        trainer = pl.Trainer(**profiler_kwargs)
-        
-        lit_model.test_loader_to_val = test_loader
-        trainer.fit(lit_model, train_loader)
+        trainer.fit(lit_model, train_loader, val_loader)
         
         if SAVE_MODEL:
             torch.save({'trainer' : trainer, 'model' : lit_model, 
-                        'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
+                        'name' : MODEL_NAME, 'saved_at_time' : datetime.now(),
+                        'tag' : 'saved_in_training'},
                         open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb'))
         #end
     #end
