@@ -429,16 +429,17 @@ for run in range(RUNS):
                                   preprocess_params = test_set.preprocess_params
             )
             lit_model.load_state_dict(lit_model_params)
+            lit_model.to(device)
             
             trainer = pl.Trainer(**profiler_kwargs)
             
         else:
-            
             ''' Initialize a new model and specify the callback '''
             lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
                                   preprocess_params = test_set.preprocess_params
             )
             lit_model.set_trained()
+            lit_model.to(device)
             
             model_checkpoint = ModelCheckpoint(
                     monitor = 'val_loss',
