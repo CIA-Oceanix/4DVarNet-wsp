@@ -382,8 +382,8 @@ for run in range(RUNS):
     test_set = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
-    val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
+    # val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+    # val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     
     N = train_set.get_modality_data_size('y')
     Nu = train_set.get_modality_data_size('u')
