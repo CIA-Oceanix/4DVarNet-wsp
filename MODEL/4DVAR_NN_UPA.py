@@ -323,7 +323,7 @@ TRAIN       = True
 TEST        = True
 SAVE_OUTS   = True
 SAVE_MODEL  = True
-LOAD_WUMOD  = True
+LOAD_WUMOD  = False
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -346,6 +346,10 @@ PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
 FIXED_POINT = False
+
+if FIXED_POINT and LOAD_WUMOD:
+    raise ValueError('No warmed-up model with fixed point')
+#end
 
 
 print('Prior        : {}'.format(PRIOR))
