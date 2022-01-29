@@ -323,7 +323,7 @@ TRAIN       = True
 TEST        = True
 SAVE_OUTS   = True
 SAVE_MODEL  = True
-LOAD_WUMOD  = False
+LOAD_WUMOD  = True
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
