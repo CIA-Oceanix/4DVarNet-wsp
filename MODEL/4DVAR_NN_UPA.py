@@ -445,18 +445,18 @@ for run in range(RUNS):
             lit_model.set_trained()
             lit_model.to(device)
             
-            model_checkpoint = ModelCheckpoint(
-                    monitor = 'val_loss',
-                    dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
-                    filename = 'ckpt_model.pkl',
-                    save_top_k = 1,
-                    mode = 'min'
-            )
+            # model_checkpoint = ModelCheckpoint(
+            #         monitor = 'val_loss',
+            #         dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
+            #         filename = 'ckpt_model.pkl',
+            #         save_top_k = 1,
+            #         mode = 'min'
+            # )
             
-            trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
+            # trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
         #end
         
-        trainer.fit(lit_model, train_loader, val_loader)
+        trainer.fit(lit_model, train_loader)
         
         if SAVE_MODEL:
             torch.save({'trainer' : trainer, 'model' : lit_model, 
