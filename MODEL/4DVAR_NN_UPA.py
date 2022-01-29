@@ -427,12 +427,12 @@ for run in range(RUNS):
         if LOAD_WUMOD:
             
             ''' Load a warmed-up model '''
-            model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'ckpt_model.pkl'), 'rb')
-            lit_model_params = torch.load(model_file)['state_dict']
+            # model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'ckpt_model.pkl'), 'rb')
+            # lit_model_params = torch.load(model_file)['state_dict']
             lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
                                   preprocess_params = test_set.preprocess_params
             )
-            lit_model.load_state_dict(lit_model_params)
+            # lit_model.load_state_dict(lit_model_params)
             lit_model.to(device)
             
             trainer = pl.Trainer(**profiler_kwargs)
