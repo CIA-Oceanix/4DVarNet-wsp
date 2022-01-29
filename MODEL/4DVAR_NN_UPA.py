@@ -453,7 +453,7 @@ for run in range(RUNS):
             #         mode = 'min'
             # )
             
-            trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
+            trainer = pl.Trainer(**profiler_kwargs)#, callbacks = [model_checkpoint])
         #end
         
         trainer.fit(lit_model, train_loader)
