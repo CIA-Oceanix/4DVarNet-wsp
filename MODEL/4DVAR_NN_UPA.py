@@ -317,13 +317,13 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
 SAVE_OUTS   = True
 SAVE_MODEL  = True
-LOAD_WUMOD  = True
+LOAD_WUMOD  = False
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
