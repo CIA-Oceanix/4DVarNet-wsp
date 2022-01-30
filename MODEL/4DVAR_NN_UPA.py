@@ -328,8 +328,8 @@ FIXED_POINT = False
 SAVE_OUTS  = True
 SAVE_TRAIN = False
 LOAD_TEST  = False
-SAVE_CKPT  = True
-LOAD_CKPT  = False
+SAVE_CKPT  = False
+LOAD_CKPT  = True
 WHAT_CKPT  = 'last'
 
 if SAVE_CKPT and LOAD_CKPT:
@@ -381,6 +381,7 @@ if FIXED_POINT:
 else:
     MODEL_NAME = '{}_gs{}it'.format(MODEL_NAME, N_SOL_ITER)
 #end
+PATH_MODEL_SOURCE = os.path.join(PATH_MODEL, MODEL_NAME)
 
 if LOAD_CKPT:
     if WHAT_CKPT == 'best':
@@ -457,9 +458,9 @@ for run in range(RUNS):
         if LOAD_CKPT:
             
             if WHAT_CKPT == 'best':
-                model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'model.ckpt'), 'rb')            
+                model_file = open(os.path.join(PATH_MODEL_SOURCE, 'checkpoints', 'model.ckpt'), 'rb')            
             elif WHAT_CKPT == 'last':
-                model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'last.ckpt'), 'rb')
+                model_file = open(os.path.join(PATH_MODEL_SOURCE, 'checkpoints', 'last.ckpt'), 'rb')
             #end
             
             model_state_dict = torch.load(model_file)['state_dict']
