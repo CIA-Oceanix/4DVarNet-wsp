@@ -328,9 +328,9 @@ FIXED_POINT = False
 SAVE_OUTS  = True
 SAVE_TRAIN = False
 LOAD_TEST  = False
-SAVE_CKPT  = False
-LOAD_CKPT  = True
-WHAT_CKPT  = 'best'
+SAVE_CKPT  = True
+LOAD_CKPT  = False
+WHAT_CKPT  = 'last'
 
 if SAVE_CKPT and LOAD_CKPT:
     raise ValueError('Not save and load checkpoints at the same time')
@@ -357,7 +357,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 5
+EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -381,6 +381,15 @@ if FIXED_POINT:
 else:
     MODEL_NAME = '{}_gs{}it'.format(MODEL_NAME, N_SOL_ITER)
 #end
+
+if LOAD_CKPT:
+    if WHAT_CKPT == 'best':
+        MODEL_NAME = '{}_best'.format(MODEL_NAME)
+    elif WHAT_CKPT == 'last':
+        MODEL_NAME = '{}_last'.format(MODEL_NAME)
+    #end
+#end
+
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
 
