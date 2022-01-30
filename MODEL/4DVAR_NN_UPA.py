@@ -307,7 +307,6 @@ class LitModel(pl.LightningModule):
 #end
 
 
-
 ###############################################################################
 # MAIN
 ###############################################################################
@@ -317,13 +316,40 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
-SAVE_OUTS   = True
-SAVE_MODEL  = True
-LOAD_WUMOD  = False
+
+# Two decisions that influence the program flow
+FIXED_POINT = False
+
+# Minor decision
+SAVE_OUTS  = True
+SAVE_TRAIN = False
+LOAD_TEST  = False
+SAVE_CKPT  = False
+LOAD_CKPT  = True
+WHAT_CKPT  = 'best'
+
+if SAVE_CKPT and LOAD_CKPT:
+    raise ValueError('Not save and load checkpoints at the same time')
+#end
+
+if SAVE_CKPT:
+    
+    if FIXED_POINT:
+        raise ValueError('No fixed point with checkpoints streams')
+    #end
+    
+    if WHAT_CKPT == 'best':
+        SAVE_TOP_K_CKPT = 1
+        SAVE_LAST_CKPT = None
+    elif WHAT_CKPT == 'last':
+        SAVE_TOP_K_CKPT = 0
+        SAVE_LAST_CKPT = True
+    #end
+#end    
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -331,7 +357,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 200
+EPOCHS      = 5
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -345,11 +371,6 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
-FIXED_POINT = False
-
-if FIXED_POINT and LOAD_WUMOD:
-    raise ValueError('No warmed-up model with fixed point')
-#end
 
 
 print('Prior        : {}'.format(PRIOR))
@@ -382,8 +403,8 @@ for run in range(RUNS):
     test_set = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
-    # val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    # val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
+    val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     
     N = train_set.get_modality_data_size('y')
     Nu = train_set.get_modality_data_size('u')
@@ -424,58 +445,75 @@ for run in range(RUNS):
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
         
-        if LOAD_WUMOD:
+        if LOAD_CKPT:
             
-            ''' Load a warmed-up model '''
-            # model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'ckpt_model.pkl'), 'rb')
-            # lit_model_params = torch.load(model_file)['state_dict']
+            if WHAT_CKPT == 'best':
+                model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'model.ckpt'), 'rb')            
+            elif WHAT_CKPT == 'last':
+                model_file = open(os.path.join(PATH_MODEL, 'checkpoints', 'last.ckpt'), 'rb')
+            #end
+            
+            model_state_dict = torch.load(model_file)['state_dict']
             lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
                                   preprocess_params = test_set.preprocess_params
             )
-            # lit_model.load_state_dict(lit_model_params)
-            lit_model.to(device)
-            
+            lit_model.load_state_dict(model_state_dict)
             trainer = pl.Trainer(**profiler_kwargs)
+            trainer.fit(lit_model, train_loader, val_loader)
             
         else:
-            ''' Initialize a new model and specify the callback '''
-            lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
-                                  preprocess_params = test_set.preprocess_params
-            )
-            lit_model.set_trained()
-            lit_model.to(device)
             
-            # model_checkpoint = ModelCheckpoint(
-            #         monitor = 'val_loss',
-            #         dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
-            #         filename = 'ckpt_model.pkl',
-            #         save_top_k = 1,
-            #         mode = 'min'
-            # )
+            if SAVE_CKPT:
+                
+                lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
+                                      preprocess_params = test_set.preprocess_params
+                )
+                
+                model_checkpoint = ModelCheckpoint(
+                    monitor = 'val_loss',
+                    dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
+                    filename = 'model',
+                    save_top_k = SAVE_TOP_K_CKPT,
+                    save_last = SAVE_LAST_CKPT,
+                    mode = 'min'
+                )
+                
+                trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
+                trainer.fit(lit_model, train_loader, val_loader)
+                
             
-            trainer = pl.Trainer(**profiler_kwargs)#, callbacks = [model_checkpoint])
+            else:
+                    
+                lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
+                                      preprocess_params = test_set.preprocess_params
+                )
+                
+                trainer = pl.Trainer(**profiler_kwargs)
+                trainer.fit(lit_model, train_loader, val_loader)
+            #end
         #end
         
-        trainer.fit(lit_model, train_loader)
-        
-        if SAVE_MODEL:
-            torch.save({'trainer' : trainer, 'model' : lit_model, 
-                        'name' : MODEL_NAME, 'saved_at_time' : datetime.now(),
-                        'tag' : 'saved_in_training'},
-                        open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb'))
+        if SAVE_TRAIN:
+            model_file = open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb')
+            torch.save({
+                'model' : lit_model, 'trainer' : trainer,
+                'name' : MODEL_NAME, 'saved_at' : datetime.now()},
+                model_file
+            )
         #end
     #end
     
     ''' MODEL TEST '''
     if TEST:
         
-        if SAVE_MODEL:
-            saved_model = torch.load( open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb') )
+        if LOAD_TEST:
+            model_file = open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb')
+            saved_model = torch.load( model_file )
             trainer = saved_model['trainer']
             lit_model = saved_model['model']
-            saved_at = saved_model['saved_at_time']
+            saved_at = saved_model['saved_at']
             name = saved_model['name']
-            print('\nModel : {}, saved at {}'.format(name, saved_at))
+            print('\nModel : {}, saved at {}\n'.format(name, saved_at))
         #end
         
         lit_model.eval()
