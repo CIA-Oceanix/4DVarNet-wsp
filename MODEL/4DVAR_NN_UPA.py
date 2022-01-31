@@ -336,6 +336,10 @@ if SAVE_CKPT and LOAD_CKPT:
     raise ValueError('Not save and load checkpoints at the same time')
 #end
 
+if LOAD_CKPT and FIXED_POINT:
+    raise ValueError('Not save/load checkpoints with the fixed point option')
+#end    
+
 if SAVE_CKPT:
     
     if FIXED_POINT:
