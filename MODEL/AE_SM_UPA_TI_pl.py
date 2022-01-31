@@ -252,6 +252,9 @@ for run in range(RUNS):
     else:
         train_set = MMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
         test_set  = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
+        
+        val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+        val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     #end
     
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = 8)
@@ -306,7 +309,11 @@ for run in range(RUNS):
         
         lit_model = LitModel(network, preprocess_params = test_set.preprocess_params)
         trainer = pl.Trainer(**profiler_kwargs)
-        trainer.fit(lit_model, train_loader)
+        if not TAYLOR_DS:
+            trainer.fit(lit_model, train_loader, val_loader)
+        else:
+            trainer.fit(lit_model, train_loader)
+        #end
         
         if RUNS == 1:
             torch.save({'trainer' : trainer, 'model' : lit_model, 

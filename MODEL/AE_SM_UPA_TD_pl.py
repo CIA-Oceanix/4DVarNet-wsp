@@ -223,6 +223,9 @@ for run in range(RUNS):
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = 8)
     test_loader  = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
+    val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
+    
     N  = train_set.get_modality_data_size('y')
     Nu = train_set.get_modality_data_size('u')
     
@@ -255,7 +258,7 @@ for run in range(RUNS):
         
         lit_model = LitModel(network, preprocess_params = test_set.preprocess_params)
         trainer = pl.Trainer(**profiler_kwargs)
-        trainer.fit(lit_model, train_loader)
+        trainer.fit(lit_model, train_loader, val_loader)
         
         if RUNS == 1:
             torch.save({'trainer' : trainer, 'model' : lit_model, 
