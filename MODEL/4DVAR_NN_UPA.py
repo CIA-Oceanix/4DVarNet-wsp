@@ -316,7 +316,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 1
+RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -328,8 +328,8 @@ FIXED_POINT = False
 SAVE_OUTS  = True
 SAVE_TRAIN = False
 LOAD_TEST  = False
-SAVE_CKPT  = True
-LOAD_CKPT  = False
+SAVE_CKPT  = False
+LOAD_CKPT  = True
 WHAT_CKPT  = 'best'
 
 if SAVE_CKPT and LOAD_CKPT:
