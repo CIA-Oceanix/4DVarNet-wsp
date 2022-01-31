@@ -156,6 +156,15 @@ class LitModel(pl.LightningModule):
         return loss
     #end
     
+    def validation_step(self, batch, batch_idx):
+        
+        metrics, outs = self.compute_loss(batch)
+        val_loss = metrics['loss_pred']
+        
+        self.log('val_loss', val_loss, on_step = False, on_epoch = True, prog_bar = False)        
+        return val_loss
+    #end
+    
     def test_step(self, batch, batch_idx):
         
         if batch_idx >= 1:
