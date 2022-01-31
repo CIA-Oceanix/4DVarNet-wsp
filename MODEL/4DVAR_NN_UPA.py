@@ -329,7 +329,7 @@ SAVE_OUTS  = True
 SAVE_TRAIN = False
 LOAD_TEST  = False
 SAVE_CKPT  = False
-LOAD_CKPT  = True
+LOAD_CKPT  = False
 WHAT_CKPT  = 'best'
 
 if SAVE_CKPT and LOAD_CKPT:
