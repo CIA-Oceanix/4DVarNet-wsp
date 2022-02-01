@@ -322,7 +322,7 @@ TRAIN       = True
 TEST        = True
 
 # Two decisions that influence the program flow
-FIXED_POINT = True
+FIXED_POINT = False
 
 # Minor decision
 SAVE_OUTS  = True
