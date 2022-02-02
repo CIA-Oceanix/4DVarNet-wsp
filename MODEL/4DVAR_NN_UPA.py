@@ -316,7 +316,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -328,7 +328,7 @@ FIXED_POINT = False
 SAVE_OUTS  = True
 SAVE_TRAIN = False
 LOAD_TEST  = False
-SAVE_CKPT  = False
+SAVE_CKPT  = True
 LOAD_CKPT  = False
 WHAT_CKPT  = 'best'
 
@@ -473,7 +473,7 @@ for run in range(RUNS):
             )
             lit_model.load_state_dict(model_state_dict)
             trainer = pl.Trainer(**profiler_kwargs)
-            trainer.fit(lit_model, train_loader, val_loader)
+            trainer.fit(lit_model, train_loader, test_loader)
             
         else:
             
@@ -493,7 +493,7 @@ for run in range(RUNS):
                 )
                 
                 trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
-                trainer.fit(lit_model, train_loader, val_loader)
+                trainer.fit(lit_model, train_loader, test_loader)
                 
             
             else:
@@ -503,7 +503,7 @@ for run in range(RUNS):
                 )
                 
                 trainer = pl.Trainer(**profiler_kwargs)
-                trainer.fit(lit_model, train_loader, val_loader)
+                trainer.fit(lit_model, train_loader, test_loader)
             #end
         #end
         
