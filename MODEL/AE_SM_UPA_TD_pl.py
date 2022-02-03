@@ -267,7 +267,7 @@ for run in range(RUNS):
         
         lit_model = LitModel(network, preprocess_params = test_set.preprocess_params)
         trainer = pl.Trainer(**profiler_kwargs)
-        trainer.fit(lit_model, train_loader, val_loader)
+        trainer.fit(lit_model, train_loader, test_loader)
         
         if RUNS == 1:
             torch.save({'trainer' : trainer, 'model' : lit_model, 
