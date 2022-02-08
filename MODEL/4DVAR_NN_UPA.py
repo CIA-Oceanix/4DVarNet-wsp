@@ -329,7 +329,7 @@ SAVE_OUTS  = True
 SAVE_TRAIN = False
 LOAD_TEST  = False
 SAVE_CKPT  = False
-LOAD_CKPT  = True
+LOAD_CKPT  = False
 
 if SAVE_CKPT and LOAD_CKPT:
     raise ValueError('Not save and load checkpoints at the same time')
