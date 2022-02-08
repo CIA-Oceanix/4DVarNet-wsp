@@ -1,4 +1,3 @@
-
 print('\n\n')
 print('###############################################')
 print('4DVAR SM TD UPA')
@@ -25,7 +24,6 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
 from sklearn.metrics import r2_score
 
 from tutls import L2NormLoss, NormLoss, xavier_weights_initialization
@@ -40,6 +38,7 @@ else:
     device = 'cpu'
     gpus = 0
 #end
+
 
 
 class AutoEncoder(nn.Module):
@@ -111,8 +110,6 @@ class LitModel(pl.LightningModule):
         self.preprocess_params = preprocess_params
         self.test_rmse = np.float64(0.)
         self.samples_to_save = list()
-        self.__trained = False
-        self.loss_val = np.float64(0.)
         
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
             
@@ -130,14 +127,6 @@ class LitModel(pl.LightningModule):
             shapeData,                        # Shape data
             self.hparams.n_solver_iter        # Solver iterations
             )
-    #end
-    
-    def set_trained(self):
-        self.__trained = True
-    #end
-    
-    def is_trained(self):
-        return self.__trained
     #end
     
     def forward(self, input_data, iterations = None, phase = 'train'):
@@ -270,15 +259,6 @@ class LitModel(pl.LightningModule):
         return loss
     #end
     
-    # def validation_step(self, batch, batch_idx):
-        
-    #     metrics, outs = self.compute_loss(batch)
-    #     val_loss = metrics['loss_pred']
-        
-    #     self.log('val_loss', val_loss, on_step = False, on_epoch = True, prog_bar = False)        
-    #     return val_loss
-    # #end
-    
     def test_step(self, batch, batch_idx):
         
         if batch_idx >= 1:
@@ -307,6 +287,7 @@ class LitModel(pl.LightningModule):
 #end
 
 
+
 ###############################################################################
 # MAIN
 ###############################################################################
@@ -320,25 +301,6 @@ RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
-
-# Two decisions that influence the program flow
-FIXED_POINT = False
-
-# Minor decision
-SAVE_OUTS  = True
-SAVE_TRAIN = False
-LOAD_TEST  = False
-SAVE_CKPT  = False
-LOAD_CKPT  = False
-
-if SAVE_CKPT and LOAD_CKPT:
-    raise ValueError('Not save and load checkpoints at the same time')
-#end
-
-if SAVE_CKPT or LOAD_CKPT and FIXED_POINT:
-    raise ValueError('Not save/load checkpoints with the fixed point option')
-#end
-
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -360,22 +322,17 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
+FIXED_POINT = False
+TRMSE       = 3
 
-
-print('Prior        : {}'.format(PRIOR))
-print('Fixed point  : {}\n\n'.format(FIXED_POINT))
+print('Prior       : {}'.format(PRIOR))
+print('Fixed point : {}\n\n'.format(FIXED_POINT))
 MODEL_NAME  = '{}_{}'.format(MODEL_NAME, PRIOR)
 if FIXED_POINT:
     MODEL_NAME = '{}_fp1it'.format(MODEL_NAME)
 else:
     MODEL_NAME = '{}_gs{}it'.format(MODEL_NAME, N_SOL_ITER)
 #end
-PATH_MODEL_SOURCE = os.path.join(PATH_MODEL, MODEL_NAME)
-
-if LOAD_CKPT:
-    MODEL_NAME = '{}_ckpt'.format(MODEL_NAME)
-#end
-
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
 
@@ -397,9 +354,6 @@ for run in range(RUNS):
     
     test_set = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
-    
-    # val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    # val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     
     N = train_set.get_modality_data_size('y')
     Nu = train_set.get_modality_data_size('u')
@@ -433,76 +387,38 @@ for run in range(RUNS):
                 nn.Sequential(
                     nn.Conv1d(N + Nu, 128, kernel_size = 3, padding = 'same'),
                     nn.LeakyReLU(0.1),
-                    nn.Conv1d(128, N + Nu, kernel_size = 3, padding = 'same') 
+                    nn.Conv1d(128, N + Nu, kernel_size = 3, padding = 'same')
                 )
             )
         #end
+        
+        lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
+                              preprocess_params = test_set.preprocess_params
+        )
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
+        trainer = pl.Trainer(**profiler_kwargs)
         
-        if LOAD_CKPT:
-            
-            model_file = open(os.path.join(PATH_MODEL_SOURCE, 'checkpoints', 'model.ckpt'), 'rb')
-            model_state_dict = torch.load(model_file)['state_dict']
-            lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
-                                  preprocess_params = test_set.preprocess_params
-            )
-            lit_model.load_state_dict(model_state_dict)
-            trainer = pl.Trainer(**profiler_kwargs)
-            trainer.fit(lit_model, train_loader, test_loader)
-            
-        else:
-            
-            if SAVE_CKPT:
-                
-                lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
-                                      preprocess_params = test_set.preprocess_params
-                )
-                
-                model_checkpoint = ModelCheckpoint(
-                    monitor = 'val_loss',
-                    dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
-                    filename = 'model',
-                    save_top_k = 1,
-                    save_last = False,
-                    mode = 'min'
-                )
-                
-                trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
-                trainer.fit(lit_model, train_loader, test_loader)
-                
-            else:
-                    
-                lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
-                                      preprocess_params = test_set.preprocess_params
-                )
-                
-                trainer = pl.Trainer(**profiler_kwargs)
-                trainer.fit(lit_model, train_loader)
-            #end
-        #end
+        lit_model.test_loader_to_val = test_loader
+        trainer.fit(lit_model, train_loader)
         
-        if SAVE_TRAIN:
-            model_file = open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb')
-            torch.save({
-                'model' : lit_model, 'trainer' : trainer,
-                'name' : MODEL_NAME, 'saved_at' : datetime.now()},
-                model_file
-            )
+        if RUNS == 1:
+            torch.save({'trainer' : trainer, 'model' : lit_model, 
+                        'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
+                        open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb'))
         #end
     #end
     
     ''' MODEL TEST '''
     if TEST:
         
-        if LOAD_TEST:
-            model_file = open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb')
-            saved_model = torch.load( model_file )
+        if RUNS == 1:
+            saved_model = torch.load( open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb') )
             trainer = saved_model['trainer']
             lit_model = saved_model['model']
-            saved_at = saved_model['saved_at']
+            saved_at = saved_model['saved_at_time']
             name = saved_model['name']
-            print('\nModel : {}, saved at {}\n'.format(name, saved_at))
+            print('\nModel : {}, saved at {}'.format(name, saved_at))
         #end
         
         lit_model.eval()
@@ -510,7 +426,7 @@ for run in range(RUNS):
         lit_model.model.eval()
         trainer.test(lit_model, test_loader)
         
-        if PLOTS:
+        if RUNS == 1 and PLOTS:
             plot_UPA(lit_model.samples_to_save)
             plot_WS(lit_model.samples_to_save)
             plot_WS_scatter(lit_model.samples_to_save, 'y')
@@ -538,36 +454,34 @@ windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = T
 windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
 
 
-if SAVE_OUTS:
-    ''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
-    hyperparams = {
-        'EPOCHS'      : EPOCHS,
-        'BATCH_SIZE'  : BATCH_SIZE,
-        'LATENT_DIM'  : LATENT_DIM,
-        'DIM_LSTM'    : DIM_LSTM,
-        'N_SOL_ITER'  : N_SOL_ITER,
-        'N_4DV_ITER'  : N_4DV_ITER,
-        'DROPOUT'     : DROPOUT,
-        'WEIGHT_DATA' : WEIGHT_DATA,
-        'WEIGHT_PRED' : WEIGHT_PRED,
-        'SOLVER_LR'   : SOLVER_LR,
-        'SOLVER_WD'   : SOLVER_WD,
-        'PHI_LR'      : PHI_LR,
-        'PHI_WD'      : PHI_WD,
-        'PRED_ERROR'  : pred_error_metric.item(),
-        'R_SQUARED'   : r2_metric.item()
-    }
-    with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
-        json.dump(hyperparams, filestream, indent = 4)
-    #end
-    filestream.close()
-    
-    pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
-    
-    with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
-        f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-        f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
-                                                      windspeed_rmses['only_UPA']['u'].std()))
-        f.write('Median     ; {:.4f}\n'.format(windspeed_baggr))
-    f.close()
+''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
+hyperparams = {
+    'EPOCHS'      : EPOCHS,
+    'BATCH_SIZE'  : BATCH_SIZE,
+    'LATENT_DIM'  : LATENT_DIM,
+    'DIM_LSTM'    : DIM_LSTM,
+    'N_SOL_ITER'  : N_SOL_ITER,
+    'N_4DV_ITER'  : N_4DV_ITER,
+    'DROPOUT'     : DROPOUT,
+    'WEIGHT_DATA' : WEIGHT_DATA,
+    'WEIGHT_PRED' : WEIGHT_PRED,
+    'SOLVER_LR'   : SOLVER_LR,
+    'SOLVER_WD'   : SOLVER_WD,
+    'PHI_LR'      : PHI_LR,
+    'PHI_WD'      : PHI_WD,
+    'PRED_ERROR'  : pred_error_metric.item(),
+    'R_SQUARED'   : r2_metric.item()
+}
+with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
+    json.dump(hyperparams, filestream, indent = 4)
 #end
+filestream.close()
+
+pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
+
+with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
+    f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
+    f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+                                                  windspeed_rmses['only_UPA']['u'].std()))
+    f.write('Median     ; {:.4f}\n'.format(windspeed_baggr))
+f.close()
