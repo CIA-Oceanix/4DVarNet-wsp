@@ -297,7 +297,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 1
+RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -486,7 +486,7 @@ with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)),
     f.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
     f.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))
-    f.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+    f.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))
     f.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
 f.close()
