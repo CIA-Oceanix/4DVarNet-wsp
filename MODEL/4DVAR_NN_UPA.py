@@ -296,8 +296,8 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
-PLOTS       = False
-RUNS        = 10
+PLOTS       = True
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -341,7 +341,7 @@ Initialize the performance metrics data structures
 '''
 windspeed_rmses = {
         'only_SAR'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
-        'only_UPA'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
+        'only_UPA'  : {'u' : np.zeros(RUNS), 'u_c' : np.zeros(RUNS)},
         'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
 }
 predictions = list()
@@ -436,11 +436,14 @@ for run in range(RUNS):
         u_reco = lit_model.samples_to_save[0]['u_reco'].cpu().detach().numpy()
         
         pred_error_metric = NormLoss((u_data - u_reco), mask = None, divide = True, rmse = True)
+        mask_central = torch.zeros((u_data.shape)); mask_central[:, FORMAT_SIZE // 2, :] = 1
+        pred_error_metric_central = NormLoss((u_data - u_reco), mask = mask_central, divide = True, rmse = True)
         r2_metric = r2_score(u_data.reshape(-1,1), u_reco.reshape(-1,1))
         
         print('R² score = {:.4f}'.format(r2_metric))
         print('RMSE     = {:.4f}'.format(pred_error_metric))
         windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
+        windspeed_rmses['only_UPA']['u_c'][run] = pred_error_metric_central
         
         predictions.append( u_reco )
     #end
@@ -480,8 +483,10 @@ filestream.close()
 pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
 
 with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
-    f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-    f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+    f.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
+    f.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))
-    f.write('Median     ; {:.4f}\n'.format(windspeed_baggr))
+    f.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+                                                  windspeed_rmses['only_UPA']['u'].std()))
+    f.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
 f.close()
