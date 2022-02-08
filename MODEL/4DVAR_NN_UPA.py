@@ -270,14 +270,14 @@ class LitModel(pl.LightningModule):
         return loss
     #end
     
-    def validation_step(self, batch, batch_idx):
+    # def validation_step(self, batch, batch_idx):
         
-        metrics, outs = self.compute_loss(batch)
-        val_loss = metrics['loss_pred']
+    #     metrics, outs = self.compute_loss(batch)
+    #     val_loss = metrics['loss_pred']
         
-        self.log('val_loss', val_loss, on_step = False, on_epoch = True, prog_bar = False)        
-        return val_loss
-    #end
+    #     self.log('val_loss', val_loss, on_step = False, on_epoch = True, prog_bar = False)        
+    #     return val_loss
+    # #end
     
     def test_step(self, batch, batch_idx):
         
@@ -316,7 +316,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -330,30 +330,15 @@ SAVE_TRAIN = False
 LOAD_TEST  = False
 SAVE_CKPT  = False
 LOAD_CKPT  = True
-WHAT_CKPT  = 'best'
 
 if SAVE_CKPT and LOAD_CKPT:
     raise ValueError('Not save and load checkpoints at the same time')
 #end
 
-if LOAD_CKPT and FIXED_POINT:
+if SAVE_CKPT or LOAD_CKPT and FIXED_POINT:
     raise ValueError('Not save/load checkpoints with the fixed point option')
-#end    
+#end
 
-if SAVE_CKPT:
-    
-    if FIXED_POINT:
-        raise ValueError('No fixed point with checkpoints streams')
-    #end
-    
-    if WHAT_CKPT == 'best':
-        SAVE_TOP_K_CKPT = 1
-        SAVE_LAST_CKPT = None
-    elif WHAT_CKPT == 'last':
-        SAVE_TOP_K_CKPT = 0
-        SAVE_LAST_CKPT = True
-    #end
-#end    
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR_SM_UPA_TD'
@@ -361,7 +346,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 200
+EPOCHS      = 50
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -388,11 +373,7 @@ else:
 PATH_MODEL_SOURCE = os.path.join(PATH_MODEL, MODEL_NAME)
 
 if LOAD_CKPT:
-    if WHAT_CKPT == 'best':
-        MODEL_NAME = '{}_best'.format(MODEL_NAME)
-    elif WHAT_CKPT == 'last':
-        MODEL_NAME = '{}_last'.format(MODEL_NAME)
-    #end
+    MODEL_NAME = '{}_ckpt'.format(MODEL_NAME)
 #end
 
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
@@ -417,8 +398,8 @@ for run in range(RUNS):
     test_set = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
-    val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
+    # val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+    # val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     
     N = train_set.get_modality_data_size('y')
     Nu = train_set.get_modality_data_size('u')
@@ -461,12 +442,7 @@ for run in range(RUNS):
         
         if LOAD_CKPT:
             
-            if WHAT_CKPT == 'best':
-                model_file = open(os.path.join(PATH_MODEL_SOURCE, 'checkpoints', 'model.ckpt'), 'rb')            
-            elif WHAT_CKPT == 'last':
-                model_file = open(os.path.join(PATH_MODEL_SOURCE, 'checkpoints', 'last.ckpt'), 'rb')
-            #end
-            
+            model_file = open(os.path.join(PATH_MODEL_SOURCE, 'checkpoints', 'model.ckpt'), 'rb')
             model_state_dict = torch.load(model_file)['state_dict']
             lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
                                   preprocess_params = test_set.preprocess_params
@@ -487,15 +463,14 @@ for run in range(RUNS):
                     monitor = 'val_loss',
                     dirpath = os.path.join(PATH_MODEL, 'checkpoints'),
                     filename = 'model',
-                    save_top_k = SAVE_TOP_K_CKPT,
-                    save_last = SAVE_LAST_CKPT,
+                    save_top_k = 1,
+                    save_last = False,
                     mode = 'min'
                 )
                 
                 trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
                 trainer.fit(lit_model, train_loader, test_loader)
                 
-            
             else:
                     
                 lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
@@ -503,7 +478,7 @@ for run in range(RUNS):
                 )
                 
                 trainer = pl.Trainer(**profiler_kwargs)
-                trainer.fit(lit_model, train_loader, test_loader)
+                trainer.fit(lit_model, train_loader)
             #end
         #end
         
