@@ -346,7 +346,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 50
+EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
