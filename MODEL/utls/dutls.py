@@ -97,7 +97,6 @@ class MMData(Dataset):
             # self.X[i]     = torch.Tensor(self.X[i]).type(self.dtype)
             self.Y[i]     = torch.Tensor(self.Y[i]).type(self.dtype)
             # self.W[i]     = torch.Tensor(self.W[i]).type(self.dtype)
-            # self.U[i]     = torch.Tensor([self.U[i]]).type(self.dtype)
             self.U[i]     = torch.Tensor(self.U[i]).type(self.dtype)
         #end
     #end
@@ -109,6 +108,78 @@ class MMData(Dataset):
         return data
     #end
     
+#end
+
+
+class SMData(Dataset):
+    
+    def __init__(self, path_data, wind_values, data_title,
+                 dtype = torch.float32,
+                 convert_to_tensor = True):
+        
+        UPA        = pickle.load( open(os.path.join(path_data, 'UPA_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
+        WIND_label = pickle.load( open(os.path.join(path_data, 'WIND_label_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
+        
+        self.UPA = UPA['data']
+        self.WIND_label = WIND_label['data']
+        
+        self.which_wind = WIND_label['which']
+        
+        self.preprocess_params = {
+                'upa' : UPA['nparms'],
+                'wind' : WIND_label['nparms']
+            }
+        
+        self.nsamples = self.UPA.__len__()
+        self.dtype    = dtype
+        
+        if convert_to_tensor: self.to_tensor()
+        
+    #end
+    
+    def __len__(self):
+        
+        return self.nsamples
+    #end
+    
+    def __getitem__(self, idx):
+        
+        return self.UPA[idx], self.WIND_label[idx]
+    #end
+    
+    def get_modality_data_size(self, data = None, asdict = False):
+        
+        N = {
+            'upa' : np.int32(self.UPA[0].shape[1]),
+            'wind' : np.int32(1)
+        }
+        
+        if data is None:
+            if asdict:
+                return N
+            else:
+                return N['upa'], N['wind']
+            #end
+        else:
+            return N[data]
+        #end
+    #end
+    
+    def to_tensor(self):
+        
+        for i in range(self.nsamples):
+            
+            self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
+            self.WIND_label[i] = torch.Tensor(self.WIND_label[i]).type(self.dtype)
+        #end
+    #end
+    
+    def undo_preprocess(self, data_preprocessed, tag):
+        
+        v_min, v_max = self.preprocess_params[tag]
+        data = (v_max - v_min) * data_preprocessed + v_min
+        return data
+    #end
 #end
 
 
