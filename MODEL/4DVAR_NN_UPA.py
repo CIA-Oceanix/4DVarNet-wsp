@@ -162,8 +162,8 @@ class LitModel(pl.LightningModule):
         #end
         
         batch_size = batch[0].shape[0]
-        data_UPA = batch[1].reshape(batch_size, FORMAT_SIZE, N)
-        data_ws  = batch[3].reshape(batch_size, FORMAT_SIZE, Nu)
+        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, N)
+        data_ws  = batch[1].reshape(batch_size, FORMAT_SIZE, Nu)
         data_UPA = data_UPA.transpose(1, 2)
         data_ws  = data_ws.transpose(1, 2)
         
