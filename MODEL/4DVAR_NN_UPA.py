@@ -27,7 +27,7 @@ import pytorch_lightning as pl
 from sklearn.metrics import r2_score
 
 from tutls import L2NormLoss, NormLoss, xavier_weights_initialization
-from dutls import MMData
+from dutls import SMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 import solver as NN_4DVar
 
@@ -175,8 +175,8 @@ class LitModel(pl.LightningModule):
         
         '''Reshape the input data'''
         batch_size = batch[0].shape[0]
-        data_UPA = batch[1].reshape(batch_size, FORMAT_SIZE, N).clone()
-        data_ws  = batch[3].reshape(batch_size, FORMAT_SIZE, Nu).clone()
+        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, N).clone()
+        data_ws  = batch[1].reshape(batch_size, FORMAT_SIZE, Nu).clone()
         data_UPA = data_UPA.transpose(1, 2)
         data_ws  = data_ws.transpose(1, 2)
         
@@ -282,10 +282,12 @@ class LitModel(pl.LightningModule):
     
     def undo_preprocess(self, data, params):
         
-        return (params[1] - params[0]) * data + params[0]
+        data_shape = data.shape[-1]
+        data_ = data.detach().cpu().numpy().reshape(-1, data_shape)
+        data_ = params.inverse_transform(data_).reshape(data.shape)
+        return torch.Tensor(data_)
     #end
 #end
-
 
 
 ###############################################################################
@@ -349,14 +351,14 @@ predictions = list()
 for run in range(RUNS):
     print('Run {}'.format(run))
     
-    train_set = MMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
+    train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = 8)
     
-    test_set = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
+    test_set = SMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
-    N = train_set.get_modality_data_size('y')
-    Nu = train_set.get_modality_data_size('u')
+    N = train_set.get_modality_data_size('upa')
+    Nu = train_set.get_modality_data_size('wind')
     
     ''' MODEL TRAIN '''
     if TRAIN:
@@ -487,6 +489,6 @@ with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)),
     f.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))
     f.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
-                                                  windspeed_rmses['only_UPA']['u'].std()))
+                                                  windspeed_rmses['only_UPA']['u_c'].std()))
     f.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
 f.close()
