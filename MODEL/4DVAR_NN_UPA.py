@@ -220,10 +220,10 @@ class LitModel(pl.LightningModule):
                 
                 '''If test, then denormalize the data and append them in a list
                    so to plot them in the end'''
-                data_UPA = self.undo_preprocess(data_UPA, self.preprocess_params['y'])
-                reco_UPA = self.undo_preprocess(reco_UPA, self.preprocess_params['y'])
-                data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['u'])
-                reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['u'])
+                data_UPA = self.undo_preprocess(data_UPA, self.preprocess_params['upa'])
+                reco_UPA = self.undo_preprocess(reco_UPA, self.preprocess_params['upa'])
+                data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['wind'])
+                reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['wind'])
                 
                 '''Recreate the outputs variable'''
                 outputs = { 'y_data' : data_UPA, 'y_reco' : reco_UPA,
