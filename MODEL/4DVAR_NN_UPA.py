@@ -285,7 +285,7 @@ class LitModel(pl.LightningModule):
         data_shape = data.shape[-1]
         data_ = data.detach().cpu().numpy().reshape(-1, data_shape)
         data_ = params.inverse_transform(data_).reshape(data.shape)
-        return torch.Tensor(data_)
+        return torch.Tensor(data_).to(device)
     #end
 #end
 
