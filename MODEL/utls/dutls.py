@@ -167,11 +167,15 @@ class SMData(Dataset):
     
     def to_tensor(self):
         
+        print()
+        
         for i in range(self.nsamples):
             
             self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
             self.WIND_label[i] = torch.Tensor(self.WIND_label[i]).type(self.dtype)
         #end
+        
+        print()
     #end
     
     def undo_preprocess(self, data_preprocessed, tag):
