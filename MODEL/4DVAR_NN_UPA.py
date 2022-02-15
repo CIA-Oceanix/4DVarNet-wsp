@@ -1,6 +1,7 @@
+
 print('\n\n')
 print('###############################################')
-print('4DVAR SM TD UPA')
+print('                4DVAR SM TD UPA                ')
 print('###############################################')
 print('\n\n')
 
@@ -44,6 +45,7 @@ else:
 class AutoEncoder(nn.Module):
     
     def __init__(self, encoder, decoder, ):
+        
         super(AutoEncoder, self).__init__()
         
         self.encoder = encoder
@@ -63,6 +65,7 @@ class AutoEncoder(nn.Module):
 class ConvNet(nn.Module):
     
     def __init__(self, net):
+        
         super(ConvNet, self).__init__()
         
         self.net = net
@@ -284,15 +287,8 @@ class LitModel(pl.LightningModule):
         
         return (params[1] - params[0]) * data + params[0]
     #end
-    
-    # def undo_preprocess(self, data, params):
-        
-    #     data_shape = data.shape[-1]
-    #     data_ = data.detach().cpu().numpy().reshape(-1, data_shape)
-    #     data_ = params.inverse_transform(data_).reshape(data.shape)
-    #     return torch.Tensor(data_).to(device)
-    # #end
 #end
+
 
 
 ###############################################################################
@@ -303,8 +299,8 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
-PLOTS       = False
-RUNS        = 10
+PLOTS       = True
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -359,7 +355,7 @@ for run in range(RUNS):
     train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = 8)
     
-    test_set = SMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
+    test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
     N = train_set.get_modality_data_size('upa')
@@ -404,7 +400,7 @@ for run in range(RUNS):
         )
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
-        trainer = pl.Trainer(**profiler_kwargs)
+        trainer = pl.Trainer(**profiler_kwargs, progress_bar_refresh_rate = 1)
         
         lit_model.test_loader_to_val = test_loader
         trainer.fit(lit_model, train_loader)
