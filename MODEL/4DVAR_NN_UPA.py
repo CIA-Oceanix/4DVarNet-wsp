@@ -113,6 +113,8 @@ class LitModel(pl.LightningModule):
         self.preprocess_params = preprocess_params
         self.test_rmse = np.float64(0.)
         self.samples_to_save = list()
+        self.train_losses = np.zeros(EPOCHS)
+        self.val_losses = np.zeros(EPOCHS)
         
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
             
@@ -262,6 +264,27 @@ class LitModel(pl.LightningModule):
         return loss
     #end
     
+    def training_epoch_end(self, outputs):
+        
+        loss = torch.stack([out['loss'] for out in outputs]).mean()
+        self.train_losses[self.current_epoch] = loss
+    #end
+    
+    def validation_step(self, batch, batch_idx):
+        
+        metrics, outs = self.compute_loss(batch)
+        val_loss = metrics['loss']
+        self.log('val_loss', val_loss)
+        
+        return val_loss
+    #end
+    
+    def validation_epoch_end(self, outputs):
+        
+        loss = torch.stack([out for out in outputs]).mean()
+        self.val_losses[self.current_epoch] = loss
+    #end
+    
     def test_step(self, batch, batch_idx):
         
         if batch_idx >= 1:
@@ -290,7 +313,6 @@ class LitModel(pl.LightningModule):
 #end
 
 
-
 ###############################################################################
 # MAIN
 ###############################################################################
@@ -299,8 +321,8 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
-PLOTS       = False
-RUNS        = 1
+PLOTS       = True
+RUNS        = 2
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -311,7 +333,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 200
+EPOCHS      = 10
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -326,15 +348,14 @@ PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
 FIXED_POINT = False
-TRMSE       = 3
 
-print('Prior       : {}'.format(PRIOR))
-print('Fixed point : {}\n\n'.format(FIXED_POINT))
-MODEL_NAME  = '{}_{}'.format(MODEL_NAME, PRIOR)
+print(f'Prior       : {PRIOR}')
+print(f'Fixed point : {FIXED_POINT}\n\n')
+MODEL_NAME  = f'{MODEL_NAME}_{PRIOR}'
 if FIXED_POINT:
-    MODEL_NAME = '{}_fp1it'.format(MODEL_NAME)
+    MODEL_NAME = f'{MODEL_NAME}_fp1it'
 else:
-    MODEL_NAME = '{}_gs{}it'.format(MODEL_NAME, N_SOL_ITER)
+    MODEL_NAME = f'{MODEL_NAME}_gs{N_SOL_ITER}it'
 #end
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
@@ -348,12 +369,20 @@ windspeed_rmses = {
         'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
 }
 predictions = list()
+performance_metrics = {
+        'train_loss' : np.zeros((EPOCHS, RUNS)),
+        'val_loss'   : np.zeros((EPOCHS, RUNS))
+}
+
 
 for run in range(RUNS):
     print('Run {}'.format(run))
     
     train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = 8)
+    
+    val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     
     test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
@@ -400,15 +429,16 @@ for run in range(RUNS):
         )
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
-        trainer = pl.Trainer(**profiler_kwargs, progress_bar_refresh_rate = 1)
+        trainer = pl.Trainer(**profiler_kwargs, progress_bar_refresh_rate = 20)
         
-        lit_model.test_loader_to_val = test_loader
-        trainer.fit(lit_model, train_loader)
+        trainer.fit(lit_model, train_loader, val_loader)
+        performance_metrics['train_loss'][:, run] = lit_model.train_losses
+        performance_metrics['val_loss'][:, run] = lit_model.val_losses
         
         if RUNS == 1:
             torch.save({'trainer' : trainer, 'model' : lit_model, 
                         'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
-                        open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'wb'))
+                        open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'wb'))
         #end
     #end
     
@@ -416,12 +446,12 @@ for run in range(RUNS):
     if TEST:
         
         if RUNS == 1:
-            saved_model = torch.load( open(os.path.join(PATH_MODEL, '{}.pkl'.format(MODEL_NAME)), 'rb') )
+            saved_model = torch.load( open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'rb') )
             trainer = saved_model['trainer']
             lit_model = saved_model['model']
             saved_at = saved_model['saved_at_time']
             name = saved_model['name']
-            print('\nModel : {}, saved at {}'.format(name, saved_at))
+            print(f'\nModel : {name}, saved at {saved_at}')
         #end
         
         lit_model.eval()
@@ -483,9 +513,15 @@ with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
 #end
 filestream.close()
 
-pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
+with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.pkl'), 'wb') as filestream:
+    pickle.dump(windspeed_rmses, filestream)
+filestream.close()
 
-with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
+with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_perfmetrics.pkl'), 'wb') as filestream:
+    pickle.dump(performance_metrics, filestream)
+filestream.close()
+
+with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as f:
     f.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
     f.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))
