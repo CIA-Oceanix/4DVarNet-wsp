@@ -221,16 +221,6 @@ class LitModel(pl.LightningModule):
             reco_UPA = reco_UPA.transpose(2, 1); reco_ws = reco_ws.transpose(2, 1)
             mask_UPA = mask_UPA.transpose(2, 1); mask_ws = mask_ws.transpose(2, 1)
             
-            if phase == 'train':
-                hour_mask_UPA = torch.zeros_like(data_UPA)
-                hour_mask_ws = torch.zeros_like(data_ws)
-                hour_mask_UPA[:, FORMAT_SIZE // 2 - WAC_SIZE : FORMAT_SIZE // 2 + WAC_SIZE, :] = 1
-                hour_mask_ws[:, FORMAT_SIZE // 2 - WAC_SIZE : FORMAT_SIZE // 2 + WAC_SIZE, :] = 1
-                
-                data_UPA = data_UPA * hour_mask_UPA
-                data_ws = data_ws * hour_mask_ws
-            #end
-            
             if phase == 'test' or phase == 'val':
                 
                 '''If test, then denormalize the data and append them in a list
@@ -278,6 +268,7 @@ class LitModel(pl.LightningModule):
         
         loss = torch.stack([out['loss'] for out in outputs]).mean()
         self.train_losses[self.current_epoch] = loss
+        print(f'Epoch {self.current_epoch} : Loss = {loss:.4f}')
     #end
     
     def validation_step(self, batch, batch_idx):
@@ -357,8 +348,7 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
-FIXED_POINT = False
-WAC_SIZE    = 8
+FIXED_POINT = True
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
