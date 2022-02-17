@@ -183,7 +183,8 @@ def plot_UPA(samples, title = None, pformat = 'pdf'):
         fig.savefig(os.path.join(PATH_PLOTS, title), dpi = 300, format = pformat, bbox_inches = 'tight')
     #end
     
-    plt.show(fig)
+    # plt.show(fig)
+    plt.show()
 #end
 
 
@@ -243,7 +244,8 @@ def plot_WS(samples, title = None, pformat = 'pdf'):
         fig.savefig(os.path.join(PATH_PLOTS, title), dpi = 300, format = pformat, bbox_inches = 'tight')
     #end
     
-    plt.show(fig)
+    # plt.show(fig)
+    plt.show()
 #end
 
 def plot_WS_scatter(samples, mod_name, title = None, exclude = False, pformat = 'pdf'):
@@ -273,6 +275,6 @@ def plot_WS_scatter(samples, mod_name, title = None, exclude = False, pformat = 
         fig.savefig(os.path.join(PATH_PLOTS, title), dpi = 300, format = pformat, bbox_inches = 'tight')
     #end
     
-    plt.show(fig)
+    # plt.show(fig)
+    plt.show()
 #end
-    

@@ -5,6 +5,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class MMData(Dataset):
@@ -167,15 +168,13 @@ class SMData(Dataset):
     
     def to_tensor(self):
         
-        print()
-        
-        for i in range(self.nsamples):
+        # for i in range(self.nsamples):
             
-            self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
-            self.WIND_label[i] = torch.Tensor(self.WIND_label[i]).type(self.dtype)
-        #end
-        
-        print()
+        #     self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
+        #     self.WIND_label[i] = torch.Tensor(self.WIND_label[i]).type(self.dtype)
+        # #end
+        self.UPA = torch.stack([torch.Tensor(curr_UPA).type(self.dtype) for curr_UPA in self.UPA]).to(device)
+        self.WIND_label = torch.stack([torch.Tensor(curr_WIND).type(self.dtype) for curr_WIND in self.WIND_label]).to(device)
     #end
     
     def undo_preprocess(self, data_preprocessed, tag):

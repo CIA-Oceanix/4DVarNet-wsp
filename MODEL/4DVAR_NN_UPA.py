@@ -323,7 +323,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = True
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -348,7 +348,7 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
-FIXED_POINT = True
+FIXED_POINT = False
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
@@ -430,7 +430,7 @@ for run in range(RUNS):
         )
         
         profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
-        trainer = pl.Trainer(**profiler_kwargs, progress_bar_refresh_rate = 20)
+        trainer = pl.Trainer(**profiler_kwargs)
         
         trainer.fit(lit_model, train_loader, val_loader)
         performance_metrics['train_loss'][:, run] = lit_model.train_losses
