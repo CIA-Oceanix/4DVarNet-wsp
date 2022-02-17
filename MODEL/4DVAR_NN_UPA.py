@@ -7,6 +7,7 @@ print('\n\n')
 
 import os
 import sys
+import glob
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
@@ -104,6 +105,10 @@ class LitModel(pl.LightningModule):
     def __init__(self, Phi, shapeData, preprocess_params):
         
         super(LitModel, self).__init__()
+        
+        if Phi is None and shapeData is None and preprocess_params is None:
+            return
+        #end
         
         self.Phi = Phi
         self.hparams.dim_grad_solver = DIM_LSTM
@@ -436,8 +441,8 @@ for run in range(RUNS):
         model_checkpoint = ModelCheckpoint(
                 monitor = 'val_loss',
                 dirpath = PATH_MODEL,
-                filename = MODEL_NAME + '-{epoch:02d}',
-                save_top = 1,
+                filename = f'{run}-' + MODEL_NAME + '-{epoch:02d}',
+                save_top_k = 1,
                 mode = 'min'
             )
         trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
@@ -446,24 +451,26 @@ for run in range(RUNS):
         performance_metrics['train_loss'][:, run] = lit_model.train_losses
         performance_metrics['val_loss'][:, run] = lit_model.val_losses
         
-        if RUNS == 1:
-            torch.save({'trainer' : trainer, 'model' : lit_model, 
-                        'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
-                        open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'wb'))
-        #end
+        # torch.save({'trainer' : trainer, 'model' : lit_model, 
+        #             'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
+        #             open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'wb')
+        # )
     #end
     
     ''' MODEL TEST '''
     if TEST:
         
-        if RUNS == 1:
-            saved_model = torch.load( open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'rb') )
-            trainer = saved_model['trainer']
-            lit_model = saved_model['model']
-            saved_at = saved_model['saved_at_time']
-            name = saved_model['name']
-            print(f'\nModel : {name}, saved at {saved_at}')
-        #end
+        # saved_model = torch.load( open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'rb') )
+        # trainer = saved_model['trainer']
+        # lit_model = saved_model['model']
+        # saved_at = saved_model['saved_at_time']
+        # name = saved_model['name']
+        # print(f'\nModel : {name}, saved at {saved_at}')
+        CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
+        print(CKPT_NAME)
+        checkpoint_model = open(CKPT_NAME, 'rb')
+        lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
+        lit_model.load_state_dict(lit_model_state_dict)
         
         lit_model.eval()
         lit_model.Phi.eval()
@@ -522,10 +529,6 @@ hyperparams = {
 with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
     json.dump(hyperparams, filestream, indent = 4)
 #end
-filestream.close()
-
-with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.pkl'), 'wb') as filestream:
-    pickle.dump(windspeed_rmses, filestream)
 filestream.close()
 
 with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_perfmetrics.pkl'), 'wb') as filestream:
