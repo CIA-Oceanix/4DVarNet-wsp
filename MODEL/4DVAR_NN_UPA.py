@@ -331,7 +331,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = True
-RUNS        = 1
+RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
