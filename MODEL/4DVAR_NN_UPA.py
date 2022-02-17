@@ -268,7 +268,9 @@ class LitModel(pl.LightningModule):
         
         loss = torch.stack([out['loss'] for out in outputs]).mean()
         self.train_losses[self.current_epoch] = loss
-        print(f'Epoch {self.current_epoch} : Loss = {loss:.4f}')
+        if device == 'cpu':
+            print(f'Epoch {self.current_epoch} : Loss = {loss:.4f}')
+        #end
     #end
     
     def validation_step(self, batch, batch_idx):
