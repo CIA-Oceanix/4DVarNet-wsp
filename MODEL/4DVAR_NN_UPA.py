@@ -25,6 +25,7 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from sklearn.metrics import r2_score
 
 from tutls import L2NormLoss, NormLoss, xavier_weights_initialization
@@ -431,8 +432,15 @@ for run in range(RUNS):
                               preprocess_params = test_set.preprocess_params
         )
         
-        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
-        trainer = pl.Trainer(**profiler_kwargs)
+        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}        
+        model_checkpoint = ModelCheckpoint(
+                monitor = 'val_loss',
+                dirpath = PATH_MODEL,
+                filename = MODEL_NAME + '-{epoch:02d}',
+                save_top = 1,
+                mode = 'min'
+            )
+        trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
         
         trainer.fit(lit_model, train_loader, val_loader)
         performance_metrics['train_loss'][:, run] = lit_model.train_losses
