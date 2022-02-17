@@ -173,6 +173,7 @@ class SMData(Dataset):
         #     self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
         #     self.WIND_label[i] = torch.Tensor(self.WIND_label[i]).type(self.dtype)
         # #end
+        print(device)
         self.UPA = torch.stack([torch.Tensor(curr_UPA).type(self.dtype) for curr_UPA in self.UPA]).to(device)
         self.WIND_label = torch.stack([torch.Tensor(curr_WIND).type(self.dtype) for curr_WIND in self.WIND_label]).to(device)
     #end
