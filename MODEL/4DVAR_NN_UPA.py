@@ -356,7 +356,7 @@ SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
-FIXED_POINT = True
+FIXED_POINT = False
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
@@ -530,6 +530,10 @@ with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
     json.dump(hyperparams, filestream, indent = 4)
 #end
 filestream.close()
+
+with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_wsm.pkl'), 'wb') as filename:
+    pickle.dump(windspeed_rmses, filename)
+filename.close()
 
 with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_perfmetrics.pkl'), 'wb') as filestream:
     pickle.dump(performance_metrics, filestream)
