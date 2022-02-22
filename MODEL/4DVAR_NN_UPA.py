@@ -348,7 +348,7 @@ EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
-N_SOL_ITER  = 5
+N_SOL_ITER  = 10
 N_4DV_ITER  = 1
 DROPOUT     = 0.
 WEIGHT_DATA = 0.5
@@ -359,6 +359,7 @@ PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
 FIXED_POINT = False
+LOAD_CKPT   = True
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
@@ -439,16 +440,30 @@ for run in range(RUNS):
                               preprocess_params = test_set.preprocess_params
         )
         
-        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}        
+        if LOAD_CKPT:
+            
+            CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
+            checkpoint_model = open(CKPT_NAME, 'rb')
+            print(CKPT_NAME)
+            lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
+            lit_model.load_state_dict(lit_model_state_dict)
+            
+            name_append = '_second'
+        else:
+            name_append = ''
+        #end
+        
+        profiler_kwargs = {'max_epochs' : EPOCHS, 'log_every_n_steps' : 1, 'gpus' : gpus}
+        
         model_checkpoint = ModelCheckpoint(
                 monitor = 'val_loss',
                 dirpath = PATH_MODEL,
-                filename = f'{run}-' + MODEL_NAME + '-{epoch:02d}',
+                filename = f'{run}-' + MODEL_NAME + '-{epoch:02d}' + name_append,
                 save_top_k = 1,
                 mode = 'min'
             )
         trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
-        
+                
         trainer.fit(lit_model, train_loader, val_loader)
         performance_metrics['train_loss'][:, run] = lit_model.train_losses
         performance_metrics['val_loss'][:, run] = lit_model.val_losses
@@ -468,7 +483,7 @@ for run in range(RUNS):
         # saved_at = saved_model['saved_at_time']
         # name = saved_model['name']
         # print(f'\nModel : {name}, saved at {saved_at}')
-        CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
+        CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + f'-epoch=*{name_append}.ckpt'))[0]
         print(CKPT_NAME)
         checkpoint_model = open(CKPT_NAME, 'rb')
         lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
