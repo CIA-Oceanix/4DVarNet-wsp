@@ -1,4 +1,6 @@
 
+# CHECKPOINT
+
 print('\n\n')
 print('###############################################')
 print('                4DVAR SM TD UPA                ')
