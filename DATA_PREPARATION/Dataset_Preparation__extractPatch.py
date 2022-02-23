@@ -1,4 +1,6 @@
 
+# CHECKPOINT
+
 import os
 import pickle
 import numpy as np
@@ -117,18 +119,19 @@ def get_n_days_range(df, days):
 def produce_data_lists(df_final):
     
     if df_final is None:
-        return None, None
+        return None, None, None
     #end
     
-    timestamps  = list()
-    SAR_ECMWF   = list()
-    SAR_GMF     = list()
-    SAR_NRCS    = list()
-    UPA_SPL64   = list()
-    WIND_label  = list()
+    timestamps       = list()
+    # SAR_ECMWF        = list()
+    # SAR_GMF          = list()
+    # SAR_NRCS         = list()
+    UPA_SPL64        = list()
+    WIND_label_ECMWF = list()
+    WIND_label_SITU  = list()
     
     # Define shapes
-    SAR_shape  = (np.int32(PATCH_SIZE * 2) + 1, np.int32(PATCH_SIZE * 2) + 1)
+    # SAR_shape  = (np.int32(PATCH_SIZE * 2) + 1, np.int32(PATCH_SIZE * 2) + 1)
     UPA_shape  = SPL64[0].shape
     WIND_shape = INSITU.at[0, 'Wind_speed [m/s]'].shape
     
@@ -137,37 +140,34 @@ def produce_data_lists(df_final):
         
         row         = df_final.loc[i]
         timestamp   = row['timestamp']
-        SARnrcsidx  = row['SARnrcs_idx']
-        SARgmfidx   = row['SARgmf_idx']
-        SARecmwfidx = row['SARecmwf_idx']
+        # SARnrcsidx  = row['SARnrcs_idx']
+        # SARgmfidx   = row['SARgmf_idx']
+        # SARecmwfidx = row['SARecmwf_idx']
         UPAidx      = row['UPA_idx']
         
-        if WIND_VALUES == 'ECMWF':
-            WINDidx = row['ECMWF_idx']
-        if WIND_VALUES == 'SITU':
-            WINDidx = row['SITU_idx']
-        #end
+        WIND_ECMWF_idx = row['ECMWF_idx']
+        WIND_SITU_idx = row['SITU_idx']
         
         timestamps.append( timestamp )
         
-        for name, SARidx, values_SAR, SARlist in zip(
-                ['nrcs', 'gmf', 'emcwf'],
-                [SARnrcsidx, SARgmfidx, SARecmwfidx], 
-                [VALUES_SAR_NRCS, VALUES_SAR_GMF, VALUES_SAR_ECMWF], 
-                [SAR_NRCS, SAR_GMF, SAR_ECMWF] 
-                ):
+        # for name, SARidx, values_SAR, SARlist in zip(
+        #         ['nrcs', 'gmf', 'emcwf'],
+        #         [SARnrcsidx, SARgmfidx, SARecmwfidx], 
+        #         [VALUES_SAR_NRCS, VALUES_SAR_GMF, VALUES_SAR_ECMWF], 
+        #         [SAR_NRCS, SAR_GMF, SAR_ECMWF] 
+        #         ):
         
-            if not np.all(np.isnan(SARidx)):
+        #     if not np.all(np.isnan(SARidx)):
                 
-                SARidx = np.int32(SARidx)
-                this_SAR = np.array(values_SAR)[SARidx]
-                SARlist.append( this_SAR.astype(np.float32) )
+        #         SARidx = np.int32(SARidx)
+        #         this_SAR = np.array(values_SAR)[SARidx]
+        #         SARlist.append( this_SAR.astype(np.float32) )
                 
-            else:
+        #     else:
                 
-                SARlist.append( np.nan * np.ones(SAR_shape) )
-            #end                
-        #end
+        #         SARlist.append( np.nan * np.ones(SAR_shape) )
+        #     #end                
+        # #end
         
         if not np.all(np.isnan(UPAidx)):
             
@@ -181,47 +181,58 @@ def produce_data_lists(df_final):
             UPA_SPL64.append(np.nan * np.ones(UPA_shape))
         #end
         
-        if not np.all(np.isnan(WINDidx)):
+        if not np.all(np.isnan(WIND_SITU_idx)):
             
-            WINDidx = np.int32(WINDidx)
+            WIND_SITU_idx = np.int32(WIND_SITU_idx)
             
-            if WIND_VALUES == 'ECMWF':
-                this_WIND = np.array(GLOBAL_ECMWF['w10'].values)[WINDidx]
-            if WIND_VALUES == 'SITU':
-                this_WIND = np.array(INSITU['Wind_speed [m/s]'].values)[WINDidx]
+            this_WIND_SITU = np.array(INSITU['Wind_speed [m/s]'].values)[WIND_SITU_idx]
+            
+            if NORMALIZE:
+                this_WIND_SITU = (this_WIND_SITU - SITU_MIN) / (SITU_MAX - SITU_MIN)
             #end
             
-            if NORMALIZE: 
-                if WIND_VALUES == 'ECMWF':
-                    this_WIND = (this_WIND - ECMWF_MIN) / (ECMWF_MAX - ECMWF_MIN) 
-                if WIND_VALUES == 'SITU':
-                    this_WIND = (this_WIND - SITU_MIN) / (SITU_MAX - SITU_MIN)
-                #end
-            #end
-            
-            WIND_label.append( this_WIND )
+            WIND_label_SITU.append( this_WIND_SITU )
             
         else:
             
-            WIND_label.append(np.nan * np.ones( WIND_shape ))
+            WIND_label_SITU.append(np.nan * np.ones( WIND_shape ))
+        #end
+        
+        if not np.all(np.isnan(WIND_ECMWF_idx)):
+            
+            WIND_ECMWF_idx = np.int32(WIND_ECMWF_idx)
+            
+            this_WIND_ECMWF = np.array(GLOBAL_ECMWF['w10'].values)[WIND_ECMWF_idx]
+            
+            if NORMALIZE:
+                this_WIND_ECMWF = (this_WIND_ECMWF - ECMWF_MIN) / (ECMWF_MAX - ECMWF_MIN)
+            #end
+            
+            WIND_label_ECMWF.append( this_WIND_ECMWF )
+            
+        else:
+            
+            WIND_label_ECMWF.append(np.nan * np.ones( WIND_shape ))
         #end
     #end
     
-    return np.array(UPA_SPL64), np.array(WIND_label)
+    return np.array(UPA_SPL64), np.array(WIND_label_ECMWF), np.array(WIND_label_SITU)
 #end
 
 
-def obtain_sliding_window_set(UPAdata, WINDdata):
+def obtain_sliding_window_set(UPAdata, WINDdata_situ, WINDdata_ecmwf):
     
     UPAlist  = list()
-    WINDlist = list()
+    WINDlist_situ = list()
+    WINDlist_ecmwf = list()
     
     for t in range(UPAdata.shape[0] - TIME_FORMAT):
         UPAlist.append( UPAdata[t : t + TIME_FORMAT, :] )
-        WINDlist.append( WINDdata[t : t + TIME_FORMAT] )
+        WINDlist_situ.append( WINDdata_situ[t : t + TIME_FORMAT] )
+        WINDlist_ecmwf.append( WINDdata_ecmwf[t : t + TIME_FORMAT] )
     #end
     
-    return UPAlist, WINDlist
+    return UPAlist, WINDlist_situ, WINDlist_ecmwf
 #end
 
 
@@ -243,8 +254,8 @@ PATH_DROP      = os.path.join(PATH_DATA, 'CompleteSeries')
 PATH_PLOTS     = os.path.join(os.getcwd(), 'plots')
 
 # FLOW CONTROL
-FIRST_PART     = True
-SECOND_PART    = True
+FIRST_PART     = False
+SECOND_PART    = False
 THIRD_PART     = True
 NORMALIZE      = True
 SAVE_DATA      = True
@@ -456,16 +467,19 @@ if THIRD_PART:
     #end
     
     # Produce data lists
-    UPAdata_train, WINDdata_train = produce_data_lists(train_set)
-    UPAdata_val, WINDdata_val = produce_data_lists(val_set)
-    UPAdata_test, WINDdata_test = produce_data_lists(test_set)
+    UPA_train, WIND_ecmwf_train, WIND_situ_train = produce_data_lists(train_set)
+    UPA_val, WIND_ecmwf_val, WIND_situ_val = produce_data_lists(val_set)
+    UPA_test, WIND_ecmwf_test, WIND_situ_test = produce_data_lists(test_set)
     
     # Export raw data lists to examine autocorrelation
     # of wind signals
-    pickle.dump(WINDdata_train, open(os.path.join(PATH_DROP, 'source', f'wind_train_{WIND_VALUES}.pkl'), 'wb'))
-    pickle.dump(WINDdata_test,  open(os.path.join(PATH_DROP, 'source', f'wind_test_{WIND_VALUES}.pkl'), 'wb'))
-    pickle.dump(WINDdata_val,   open(os.path.join(PATH_DROP, 'source', f'wind_val_{WIND_VALUES}.pkl'), 'wb'))
+    pickle.dump(WIND_situ_train, open(os.path.join(PATH_DROP, 'source', 'wind_train_situ.pkl'), 'wb'))
+    pickle.dump(WIND_situ_test,  open(os.path.join(PATH_DROP, 'source', 'wind_test_situ.pkl'), 'wb'))
+    pickle.dump(WIND_situ_val,   open(os.path.join(PATH_DROP, 'source', 'wind_val_situ.pkl'), 'wb'))
     
+    pickle.dump(WIND_ecmwf_train, open(os.path.join(PATH_DROP, 'source', 'wind_train_ecmwf.pkl'), 'wb'))
+    pickle.dump(WIND_ecmwf_test,  open(os.path.join(PATH_DROP, 'source', 'wind_test_ecmwf.pkl'), 'wb'))
+    pickle.dump(WIND_ecmwf_val,   open(os.path.join(PATH_DROP, 'source', 'wind_val_ecmwf.pkl'), 'wb'))
     
     # ------------ Train ------------------------------------------------------
     # Apply sklearn.feature_extraction.image.extract_patches_2d to
@@ -475,23 +489,27 @@ if THIRD_PART:
     
     # Obtain data shapes
     try:
-        WIND_shape = WINDdata_train.shape[1]
+        WIND_shape = WIND_situ_train.shape[1]
     except:
         WIND_shape = 1
     #end
-    UPA_shape = UPAdata_train.shape[1]
+    UPA_shape = UPA_train.shape[1]
     
-    data = np.hstack(( UPAdata_train, WINDdata_train.reshape(-1, WIND_shape) ))
+    data = np.hstack(( UPA_train, 
+                       WIND_ecmwf_train.reshape(-1, WIND_shape), 
+                       WIND_situ_train.reshape(-1, WIND_shape) )
+    )
     
     # We need to remove nan values because this crap of function
     # can not handle these
     data[np.isnan(data)] = -999
-    patches = image.extract_patches_2d(data, patch_size = (TIME_FORMAT, UPA_shape + WIND_shape),
+    patches = image.extract_patches_2d(data, patch_size = (TIME_FORMAT, UPA_shape + 2 * WIND_shape),
                                        max_patches = NUM_TRAIN_DATA)
     patches[patches <= -999] = np.nan
     
-    UPAdata_train  = list(patches[:,:, :UPA_shape])
-    WINDdata_train = list(patches[:,:, -WIND_shape:].squeeze())
+    UPA_train  = list(patches[:,:, :UPA_shape])
+    WIND_ecmwf_train = list(patches[:,:, -2])
+    WIND_situ_train = list(patches[:,:, -1:].squeeze())
     # -------------------------------------------------------------------------
     
     # ------------ Test and Val -----------------------------------------------
@@ -502,10 +520,11 @@ if THIRD_PART:
     # WINDdata_test = list(WINDdata_test.reshape(-1, TIME_FORMAT, 1))
     # UPAdata_val   = list(UPAdata_val.reshape(-1, TIME_FORMAT, UPA_shape))
     # WINDdata_val  = list(WINDdata_val.reshape(-1, TIME_FORMAT, 1))
-    UPAdata_test, WINDdata_test = obtain_sliding_window_set(UPAdata_test, WINDdata_test)
-    UPAdata_val, WINDdata_val = obtain_sliding_window_set(UPAdata_val, WINDdata_val)
+    UPA_test, WIND_situ_test, WIND_ecmwf_test \
+        = obtain_sliding_window_set(UPA_test, WIND_situ_test, WIND_ecmwf_test)
+    UPA_val, WIND_situ_val, WIND_ecmwf_val \
+        = obtain_sliding_window_set(UPA_val, WIND_situ_val, WIND_ecmwf_val)
     # -------------------------------------------------------------------------
-    
     
     # Manage drop paths
     path_train_dataset = os.path.join(PATH_DROP, 'train')
@@ -535,29 +554,43 @@ if THIRD_PART:
     
     # Train
     UPA_file = open(os.path.join(path_train_dataset, 
-                    f'UPA_{WIND_VALUES}_{DATASET_TITLE}.pkl'), 'wb')
-    pickle.dump({'data'   : UPAdata_train,
+                    f'UPA_{DATASET_TITLE}.pkl'), 'wb')
+    pickle.dump({'data'   : UPA_train,
                  'nparms' : [UPA_MIN, UPA_MAX]}, UPA_file)
     UPA_file.close()
     
     WIND_file = open(os.path.join(path_train_dataset, 
-                    f'WIND_label_{WIND_VALUES}_{DATASET_TITLE}.pkl'), 'wb')
-    pickle.dump({'data'   : WINDdata_train,
-                 'nparms' : [WIND_MIN, WIND_MAX],
+                    f'WIND_label_SITU_{DATASET_TITLE}.pkl'), 'wb')
+    pickle.dump({'data'   : WIND_situ_train,
+                 'nparms' : [SITU_MIN, SITU_MAX],
+                 'which'  : WIND_VALUES}, WIND_file)
+    WIND_file.close()
+    
+    WIND_file = open(os.path.join(path_train_dataset, 
+                    f'WIND_label_ECMWF_{DATASET_TITLE}.pkl'), 'wb')
+    pickle.dump({'data'   : WIND_ecmwf_train,
+                 'nparms' : [ECMWF_MIN, ECMWF_MAX],
                  'which'  : WIND_VALUES}, WIND_file)
     WIND_file.close()
     
     # Test
     UPA_file = open(os.path.join(path_test_dataset, 
-                    f'UPA_{WIND_VALUES}_{DATASET_TITLE}.pkl'), 'wb')
-    pickle.dump({'data'   : UPAdata_test,
+                    f'UPA_{DATASET_TITLE}.pkl'), 'wb')
+    pickle.dump({'data'   : UPA_test,
                  'nparms' : [UPA_MIN, UPA_MAX]}, UPA_file)
     UPA_file.close()
     
     WIND_file = open(os.path.join(path_test_dataset, 
-                    f'WIND_label_{WIND_VALUES}_{DATASET_TITLE}.pkl'), 'wb')
-    pickle.dump({'data'   : WINDdata_test,
-                 'nparms' : [WIND_MIN, WIND_MAX],
+                    f'WIND_label_SITU_{DATASET_TITLE}.pkl'), 'wb')
+    pickle.dump({'data'   : WIND_situ_test,
+                 'nparms' : [SITU_MIN, SITU_MAX],
+                 'which'  : WIND_VALUES}, WIND_file)
+    WIND_file.close()
+    
+    WIND_file = open(os.path.join(path_test_dataset, 
+                    f'WIND_label_ECMWF_{DATASET_TITLE}.pkl'), 'wb')
+    pickle.dump({'data'   : WIND_ecmwf_test,
+                 'nparms' : [ECMWF_MIN, ECMWF_MAX],
                  'which'  : WIND_VALUES}, WIND_file)
     WIND_file.close()
     
@@ -565,15 +598,22 @@ if THIRD_PART:
     if VALIDATION_SET:
         
         UPA_file = open(os.path.join(path_val_dataset, 
-                        f'UPA_{WIND_VALUES}_{DATASET_TITLE}.pkl'), 'wb')
-        pickle.dump({'data'   : UPAdata_val,
+                        f'UPA_{DATASET_TITLE}.pkl'), 'wb')
+        pickle.dump({'data'   : UPA_val,
                      'nparms' : [UPA_MIN, UPA_MAX]}, UPA_file)
         UPA_file.close()
         
         WIND_file = open(os.path.join(path_val_dataset, 
-                        f'WIND_label_{WIND_VALUES}_{DATASET_TITLE}.pkl'), 'wb')
-        pickle.dump({'data'   : WINDdata_val,
-                     'nparms' : [WIND_MIN, WIND_MAX],
+                        f'WIND_label_SITU_{DATASET_TITLE}.pkl'), 'wb')
+        pickle.dump({'data'   : WIND_situ_val,
+                     'nparms' : [SITU_MIN, SITU_MAX],
+                     'which'  : WIND_VALUES}, WIND_file)
+        WIND_file.close()
+        
+        WIND_file = open(os.path.join(path_val_dataset, 
+                        f'WIND_label_ECMWF_{DATASET_TITLE}.pkl'), 'wb')
+        pickle.dump({'data'   : WIND_ecmwf_val,
+                     'nparms' : [ECMWF_MIN, ECMWF_MAX],
                      'which'  : WIND_VALUES}, WIND_file)
         WIND_file.close()
     #end

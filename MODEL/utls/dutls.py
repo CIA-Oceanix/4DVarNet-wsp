@@ -118,24 +118,26 @@ class SMData(Dataset):
                  dtype = torch.float32,
                  convert_to_tensor = True):
         
-        UPA        = pickle.load( open(os.path.join(path_data, 'UPA_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
-        WIND_label = pickle.load( open(os.path.join(path_data, 'WIND_label_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
+        UPA        = pickle.load( open(os.path.join(path_data, f'UPA_{data_title}.pkl'), 'rb') )
+        WIND_situ  = pickle.load( open(os.path.join(path_data, f'WIND_label_SITU_{data_title}.pkl'), 'rb') )
+        WIND_ecmwf = pickle.load( open(os.path.join(path_data, f'WIND_label_ECMWF_{data_title}.pkl'), 'rb') )
         
         self.UPA = UPA['data']
-        self.WIND_label = WIND_label['data']
+        self.WIND_situ = WIND_situ['data']
+        self.WIND_ecmwf = WIND_ecmwf['data']
         
-        self.which_wind = WIND_label['which']
+        self.which_wind = WIND_situ['which']
         
         self.preprocess_params = {
                 'upa' : UPA['nparms'],
-                'wind' : WIND_label['nparms']
-            }
+                'wind_situ' : WIND_situ['nparms'],
+                'wind_ecmwf' : WIND_ecmwf['nparms']
+        }
         
         self.nsamples = self.UPA.__len__()
         self.dtype    = dtype
         
         if convert_to_tensor: self.to_tensor()
-        
     #end
     
     def __len__(self):
@@ -145,21 +147,22 @@ class SMData(Dataset):
     
     def __getitem__(self, idx):
         
-        return self.UPA[idx], self.WIND_label[idx]
+        return self.UPA[idx], self.WIND_ecmwf[idx], self.WIND_situ[idx]
     #end
     
     def get_modality_data_size(self, data = None, asdict = False):
         
         N = {
             'upa' : np.int32(self.UPA[0].shape[1]),
-            'wind' : np.int32(1)
+            'wind_situ' : np.int32(1),
+            'wind_ecmwf' : np.int32(1),
         }
         
         if data is None:
             if asdict:
                 return N
             else:
-                return N['upa'], N['wind']
+                return N['upa'], N['wind_ecmwf'], N['wind_situ']
             #end
         else:
             return N[data]
@@ -171,9 +174,9 @@ class SMData(Dataset):
         for i in range(self.nsamples):
             
             self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
-            self.WIND_label[i] = torch.Tensor(self.WIND_label[i]).type(self.dtype)
+            self.WIND_situ[i] = torch.Tensor(self.WIND_situ[i]).type(self.dtype)
+            self.WIND_ecmwf[i] = torch.Tensor(self.WIND_ecmwf[i]).type(self.dtype)
         #end
-        
     #end
     
     def undo_preprocess(self, data_preprocessed, tag):

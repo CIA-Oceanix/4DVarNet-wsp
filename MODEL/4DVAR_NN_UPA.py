@@ -129,7 +129,7 @@ class LitModel(pl.LightningModule):
             Phi,                              # Dynamical prior   
             Model_H(shapeData),               # Observation operator
             NN_4DVar.model_GradUpdateLSTM(    # m_Grad
-                [N + Nu, FORMAT_SIZE],           # m_Grad : Shape Data
+                [Nupa + Necmwf + Nsitu, FORMAT_SIZE], # m_Grad : Shape Data
                 False,                           # m_Grad : Use Periodic Bnd
                 self.hparams.dim_grad_solver,    # m_Grad : Dim LSTM
                 self.hparams.dropout,            # m_Grad : Dropout
@@ -175,12 +175,18 @@ class LitModel(pl.LightningModule):
         #end
         
         batch_size = batch[0].shape[0]
-        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, N)
-        data_ws  = batch[1].reshape(batch_size, FORMAT_SIZE, Nu)
+        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, Nupa)
+        data_we  = batch[1].reshape(batch_size, FORMAT_SIZE, Necmwf)
+        data_ws  = batch[2].reshape(batch_size, FORMAT_SIZE, Nsitu)
         data_UPA = data_UPA.transpose(1, 2)
+        data_we  = data_we.transpose(1, 2)
         data_ws  = data_ws.transpose(1, 2)
         
-        state = torch.cat( (data_UPA, 0. * data_ws), dim = 1 )
+        data_UPA[data_UPA.isnan()] = 0.
+        data_ws[data_ws.isnan()] = 0.
+        data_we[data_we.isnan()] = 0.
+        
+        state = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
         return state
     #end
     
@@ -188,9 +194,11 @@ class LitModel(pl.LightningModule):
         
         '''Reshape the input data'''
         batch_size = batch[0].shape[0]
-        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, N).clone()
-        data_ws  = batch[1].reshape(batch_size, FORMAT_SIZE, Nu).clone()
+        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, Nupa).clone()
+        data_we  = batch[1].reshape(batch_size, FORMAT_SIZE, Necmwf).clone()
+        data_ws  = batch[2].reshape(batch_size, FORMAT_SIZE, Nsitu).clone()
         data_UPA = data_UPA.transpose(1, 2)
+        data_we  = data_we.transpose(1, 2)
         data_ws  = data_ws.transpose(1, 2)
         
         '''Produce the masks according to the data sparsity patterns'''
@@ -199,6 +207,11 @@ class LitModel(pl.LightningModule):
         mask_UPA[data_UPA == 0] = 0
         data_UPA[data_UPA.isnan()] = 0.
         
+        mask_we = torch.zeros_like(data_we)
+        mask_we[data_we.isnan().logical_not()] = 1.
+        mask_we[data_we == 0] = 0
+        data_we[data_we.isnan()] = 0.
+        
         mask_ws = torch.zeros_like(data_ws)
         mask_ws[data_ws.isnan().logical_not()] = 1.
         mask_ws[data_ws == 0] = 0
@@ -206,8 +219,8 @@ class LitModel(pl.LightningModule):
         
         '''Aggregate UPA and wind speed data in a single tensor
            This is done with an horizontal concatenation'''
-        data_input = torch.cat( (data_UPA, 0. * data_ws), dim = 1 )
-        mask_input = torch.cat( (mask_UPA, mask_ws), dim = 1 )
+        data_input = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
+        mask_input = torch.cat( (mask_UPA, mask_we, mask_ws), dim = 1 )
         inputs_init = self.get_init_state(batch, state_init)
         
         with torch.set_grad_enabled(True):
@@ -222,12 +235,21 @@ class LitModel(pl.LightningModule):
             
             '''Split UPA and windspeed reconstructions and predictions and 
                reinstate them in the ``(batch_size, time_series_length, num_features)`` format'''
-            reco_UPA = outputs[:, :N, :]
-            reco_ws  = outputs[:, -Nu:, :]
+            reco_UPA = outputs[:, :Nupa, :]
+            reco_we  = outputs[:, Nupa : Nupa + Necmwf, :]
+            reco_ws  = outputs[:, -Nsitu:, :]
             
-            data_UPA = data_UPA.transpose(2, 1); data_ws = data_ws.transpose(2, 1)
-            reco_UPA = reco_UPA.transpose(2, 1); reco_ws = reco_ws.transpose(2, 1)
-            mask_UPA = mask_UPA.transpose(2, 1); mask_ws = mask_ws.transpose(2, 1)
+            data_UPA = data_UPA.transpose(2, 1)
+            reco_UPA = reco_UPA.transpose(2, 1) 
+            mask_UPA = mask_UPA.transpose(2, 1) 
+            
+            data_we = data_we.transpose(2, 1)
+            reco_we = reco_we.transpose(2, 1)
+            mask_we = mask_we.transpose(2, 1)
+            
+            data_ws = data_ws.transpose(2, 1)
+            reco_ws = reco_ws.transpose(2, 1)
+            mask_ws = mask_ws.transpose(2, 1)
             
             if phase == 'test' or phase == 'val':
                 
@@ -235,12 +257,15 @@ class LitModel(pl.LightningModule):
                    so to plot them in the end'''
                 data_UPA = self.undo_preprocess(data_UPA, self.preprocess_params['upa'])
                 reco_UPA = self.undo_preprocess(reco_UPA, self.preprocess_params['upa'])
-                data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['wind'])
-                reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['wind'])
+                data_we  = self.undo_preprocess(data_we,  self.preprocess_params['wind_ecmwf'])
+                reco_we  = self.undo_preprocess(reco_we,  self.preprocess_params['wind_ecmwf'])
+                data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['wind_situ'])
+                reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['wind_situ'])
                 
                 '''Recreate the outputs variable'''
                 outputs = { 'y_data' : data_UPA, 'y_reco' : reco_UPA,
-                            'u_data' : data_ws,  'u_reco' : reco_ws
+                            'u_data' : data_ws,  'u_reco' : reco_ws,
+                            'w_data' : data_we,  'w_reco' : reco_we
                 }
                 
                 if phase == 'test':
@@ -251,11 +276,13 @@ class LitModel(pl.LightningModule):
             '''Loss computation. Note the use of the masks and see the ``NormLoss`` documentation in
                the devoted module'''
             loss_data = NormLoss((data_UPA - reco_UPA), mask = mask_UPA, divide = True, dformat = 'mtn')
+            loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
             loss_ws = NormLoss((data_ws - reco_ws), mask = mask_ws, divide = True, dformat = 'mtn')
-            loss = WEIGHT_DATA * loss_data + WEIGHT_PRED * loss_ws
+            loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
         #end
         
-        return dict({'loss' : loss, 'loss_reco' : loss_data, 'loss_pred' : loss_ws}), outputs
+        return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                     'loss_we' : loss_we, 'loss_pred' : loss_ws}), outputs
     #end
     
     def training_step(self, batch, batch_idx):
@@ -263,10 +290,12 @@ class LitModel(pl.LightningModule):
         metrics, outs = self.compute_loss(batch)
         loss = metrics['loss']
         loss_reco = metrics['loss_reco']
+        loss_we   = metrics['loss_we']
         loss_pred = metrics['loss_pred']
         
         self.log('loss', loss,           on_step = True, on_epoch = True, prog_bar = True)
         self.log('loss_reco', loss_reco, on_step = True, on_epoch = True, prog_bar = True)
+        self.log('loss_we',   loss_we,   on_step = True, on_epoch = True, prog_bar = True)
         self.log('loss_pred', loss_pred, on_step = True, on_epoch = True, prog_bar = True)
         
         return loss
@@ -307,10 +336,12 @@ class LitModel(pl.LightningModule):
             
             metrics['loss']      = np.sqrt(metrics['loss'].item())
             metrics['loss_reco'] = np.sqrt(metrics['loss_reco'].item())
+            metrics['loss_we']   = np.sqrt(metrics['loss_we'].item())
             metrics['loss_pred'] = np.sqrt(metrics['loss_pred'].item())
             
             self.log('loss_test',      metrics['loss'].item())
             self.log('loss_reco_test', metrics['loss_reco'].item())
+            self.log('loss_we_test',   metrics['loss_we'].item())
             self.log('loss_pred_test', metrics['loss_pred'].item())
         #end
         
@@ -333,7 +364,7 @@ class LitModel(pl.LightningModule):
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 PLOTS       = True
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -344,7 +375,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 200
+EPOCHS      = 10
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -353,13 +384,14 @@ N_4DV_ITER  = 1
 DROPOUT     = 0.
 WEIGHT_DATA = 0.5
 WEIGHT_PRED = 1.5
+WEIGHT_WE   = 1
 SOLVER_LR   = 1e-3
 SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
 FIXED_POINT = False
-LOAD_CKPT   = True
+LOAD_CKPT   = False
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
@@ -399,8 +431,9 @@ for run in range(RUNS):
     test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
-    N = train_set.get_modality_data_size('upa')
-    Nu = train_set.get_modality_data_size('wind')
+    Nupa = train_set.get_modality_data_size('upa')
+    Necmwf = train_set.get_modality_data_size('wind_ecmwf')
+    Nsitu = train_set.get_modality_data_size('wind_situ')
     
     ''' MODEL TRAIN '''
     if TRAIN:
@@ -408,7 +441,7 @@ for run in range(RUNS):
         if PRIOR == 'AE':
             
             encoder = torch.nn.Sequential(
-                nn.Conv1d(N + Nu, 128, kernel_size = 3, padding = 'same'),
+                nn.Conv1d(Nupa + Necmwf + Nsitu, 128, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1),
                 nn.Conv1d(128, LATENT_DIM, kernel_size = 3, padding = 'same'),
@@ -418,7 +451,7 @@ for run in range(RUNS):
                 nn.Conv1d(LATENT_DIM, 128, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1),
-                nn.Conv1d(128, N + Nu, kernel_size = 3, padding = 'same'),
+                nn.Conv1d(128, Nupa + Necmwf + Nsitu, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1)
             )
@@ -429,14 +462,14 @@ for run in range(RUNS):
             
             Phi = ConvNet(
                 nn.Sequential(
-                    nn.Conv1d(N + Nu, 128, kernel_size = 3, padding = 'same'),
+                    nn.Conv1d(Nupa + Necmwf + Nsitu, 128, kernel_size = 3, padding = 'same'),
                     nn.LeakyReLU(0.1),
-                    nn.Conv1d(128, N + Nu, kernel_size = 3, padding = 'same')
+                    nn.Conv1d(128, Nupa + Necmwf + Nsitu, kernel_size = 3, padding = 'same')
                 )
             )
         #end
         
-        lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, N, FORMAT_SIZE),
+        lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, Nupa + Necmwf, FORMAT_SIZE),
                               preprocess_params = test_set.preprocess_params
         )
         
