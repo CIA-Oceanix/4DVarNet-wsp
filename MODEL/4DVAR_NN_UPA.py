@@ -391,7 +391,7 @@ PHI_LR      = 1e-3
 PHI_WD      = 1e-5
 PRIOR       = 'AE'
 FIXED_POINT = False
-LOAD_CKPT   = False
+LOAD_CKPT   = True
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
