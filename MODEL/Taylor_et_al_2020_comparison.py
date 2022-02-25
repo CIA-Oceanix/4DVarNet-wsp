@@ -17,9 +17,10 @@ import catboost as cb
 import torch
 from tutls import NormLoss
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.getcwd(), 'config.env'))
 
-PATH_DATA   = os.path.join(pathlib.Path(os.getcwd()).parent, 'DATA_PREPARATION',
-                           'data', 'W1M3A', 'Taylor_et_al_2020')
+PATH_DATA = os.getenv('PATH_DATA')
 PATH_PLOTS  = os.path.join(os.getcwd(), 'plots', 'Taylor_et_al_2020')
 if not os.path.exists(PATH_PLOTS):
     os.makedirs(PATH_PLOTS)

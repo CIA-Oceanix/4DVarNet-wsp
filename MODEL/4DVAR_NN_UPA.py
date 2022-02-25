@@ -107,10 +107,7 @@ class LitModel(pl.LightningModule):
     def __init__(self, Phi, shapeData, preprocess_params):
         
         super(LitModel, self).__init__()
-        
-        if Phi is None and shapeData is None and preprocess_params is None:
-            return
-        #end
+    
         
         self.Phi = Phi
         self.hparams.dim_grad_solver = DIM_LSTM
@@ -124,12 +121,18 @@ class LitModel(pl.LightningModule):
         self.train_losses = np.zeros(EPOCHS)
         self.val_losses = np.zeros(EPOCHS)
         
+        if MM_ECMWF:
+            mod_shape_data = [Nupa + Necmwf + Nsitu, FORMAT_SIZE]
+        else:
+            mod_shape_data = [Nupa + Nsitu, FORMAT_SIZE]
+        #end
+        
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
             
             Phi,                              # Dynamical prior   
             Model_H(shapeData),               # Observation operator
             NN_4DVar.model_GradUpdateLSTM(    # m_Grad
-                [Nupa + Necmwf + Nsitu, FORMAT_SIZE], # m_Grad : Shape Data
+                mod_shape_data,               # m_Grad : Shape Data
                 False,                           # m_Grad : Use Periodic Bnd
                 self.hparams.dim_grad_solver,    # m_Grad : Dim LSTM
                 self.hparams.dropout,            # m_Grad : Dropout
@@ -186,7 +189,12 @@ class LitModel(pl.LightningModule):
         data_ws[data_ws.isnan()] = 0.
         data_we[data_we.isnan()] = 0.
         
-        state = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
+        if not MM_ECMWF:
+            state = torch.cat( (data_UPA, 0. * data_ws), dim = 1)
+        else:
+            state = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
+        #end
+        
         return state
     #end
     
@@ -219,8 +227,14 @@ class LitModel(pl.LightningModule):
         
         '''Aggregate UPA and wind speed data in a single tensor
            This is done with an horizontal concatenation'''
-        data_input = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
-        mask_input = torch.cat( (mask_UPA, mask_we, mask_ws), dim = 1 )
+        if not MM_ECMWF:
+            data_input = torch.cat( (data_UPA, 0. * data_ws), dim = 1 )
+            mask_input = torch.cat( (mask_UPA, mask_ws), dim = 1 )
+        else:
+            data_input = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
+            mask_input = torch.cat( (mask_UPA, mask_we, mask_ws), dim = 1 )
+        #end
+        
         inputs_init = self.get_init_state(batch, state_init)
         
         with torch.set_grad_enabled(True):
@@ -276,13 +290,20 @@ class LitModel(pl.LightningModule):
             '''Loss computation. Note the use of the masks and see the ``NormLoss`` documentation in
                the devoted module'''
             loss_data = NormLoss((data_UPA - reco_UPA), mask = mask_UPA, divide = True, dformat = 'mtn')
-            loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
             loss_ws = NormLoss((data_ws - reco_ws), mask = mask_ws, divide = True, dformat = 'mtn')
-            loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
+            
+            if MM_ECMWF:
+                loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
+                loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
+                return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                             'loss_we' : loss_we, 'loss_pred' : loss_ws}), outputs
+            else:
+                loss = WEIGHT_DATA * loss_data + WEIGHT_PRED * loss_ws
+                return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                             'loss_pred' : loss_ws}), outputs
+                #end
+            #end                
         #end
-        
-        return dict({'loss' : loss, 'loss_reco' : loss_data, 
-                     'loss_we' : loss_we, 'loss_pred' : loss_ws}), outputs
     #end
     
     def training_step(self, batch, batch_idx):
@@ -290,13 +311,16 @@ class LitModel(pl.LightningModule):
         metrics, outs = self.compute_loss(batch)
         loss = metrics['loss']
         loss_reco = metrics['loss_reco']
-        loss_we   = metrics['loss_we']
         loss_pred = metrics['loss_pred']
         
         self.log('loss', loss,           on_step = True, on_epoch = True, prog_bar = True)
         self.log('loss_reco', loss_reco, on_step = True, on_epoch = True, prog_bar = True)
-        self.log('loss_we',   loss_we,   on_step = True, on_epoch = True, prog_bar = True)
         self.log('loss_pred', loss_pred, on_step = True, on_epoch = True, prog_bar = True)
+        
+        if MM_ECMWF:
+            loss_we   = metrics['loss_we']
+            self.log('loss_we',   loss_we,   on_step = True, on_epoch = True, prog_bar = True)
+        #end
         
         return loss
     #end
@@ -335,14 +359,17 @@ class LitModel(pl.LightningModule):
             metrics, outs = self.compute_loss(batch, phase = 'test')
             
             metrics['loss']      = np.sqrt(metrics['loss'].item())
-            metrics['loss_reco'] = np.sqrt(metrics['loss_reco'].item())
-            metrics['loss_we']   = np.sqrt(metrics['loss_we'].item())
+            metrics['loss_reco'] = np.sqrt(metrics['loss_reco'].item())            
             metrics['loss_pred'] = np.sqrt(metrics['loss_pred'].item())
             
             self.log('loss_test',      metrics['loss'].item())
-            self.log('loss_reco_test', metrics['loss_reco'].item())
-            self.log('loss_we_test',   metrics['loss_we'].item())
+            self.log('loss_reco_test', metrics['loss_reco'].item())            
             self.log('loss_pred_test', metrics['loss_pred'].item())
+            
+            if MM_ECMWF:
+                metrics['loss_we']   = np.sqrt(metrics['loss_we'].item())
+                self.log('loss_we_test',   metrics['loss_we'].item())
+            #end
         #end
         
         return metrics, outs
@@ -363,19 +390,23 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
+MM_ECMWF    = True
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
+FIXED_POINT = False
+LOAD_CKPT   = False
+PRIOR       = 'AE'
 
 FORMAT_SIZE = 24
-MODEL_NAME  = '4DVAR_SM_UPA_TD'
+MODEL_NAME  = '4DVAR'
 PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 200
+EPOCHS      = 10
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -389,19 +420,34 @@ SOLVER_LR   = 1e-3
 SOLVER_WD   = 1e-5
 PHI_LR      = 1e-3
 PHI_WD      = 1e-5
-PRIOR       = 'AE'
-FIXED_POINT = True
-LOAD_CKPT   = False
+NSOL_IT_REF = 5
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
 MODEL_NAME  = f'{MODEL_NAME}_{PRIOR}'
+
+if MM_ECMWF:
+    MODEL_NAME = f'{MODEL_NAME}_MM'
+else:
+    MODEL_NAME = f'{MODEL_NAME}_SM'
+#end
+
 if FIXED_POINT:
     MODEL_NAME = f'{MODEL_NAME}_fp1it'
 else:
-    MODEL_NAME = f'{MODEL_NAME}_gs{N_SOL_ITER}it'
+    MODEL_NAME = f'{MODEL_NAME}_gs{NSOL_IT_REF}it'
 #end
+
+if LOAD_CKPT:
+    MODEL_SOURCE = MODEL_NAME
+    MODEL_NAME = f'{MODEL_NAME}_lckpt'
+else:
+    MODEL_SOURCE = MODEL_NAME
+#end
+
+PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)   
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
+if not os.path.exists(PATH_SOURCE) and LOAD_CKPT: os.mkdir(PATH_SOURCE)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
 
 '''
@@ -438,10 +484,16 @@ for run in range(RUNS):
     ''' MODEL TRAIN '''
     if TRAIN:
         
+        if MM_ECMWF:
+            N_data = Nupa + Necmwf + Nsitu
+        else:
+            N_data = Nupa + Nsitu
+        #end
+        
         if PRIOR == 'AE':
             
             encoder = torch.nn.Sequential(
-                nn.Conv1d(Nupa + Necmwf + Nsitu, 128, kernel_size = 3, padding = 'same'),
+                nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1),
                 nn.Conv1d(128, LATENT_DIM, kernel_size = 3, padding = 'same'),
@@ -451,7 +503,7 @@ for run in range(RUNS):
                 nn.Conv1d(LATENT_DIM, 128, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1),
-                nn.Conv1d(128, Nupa + Necmwf + Nsitu, kernel_size = 3, padding = 'same'),
+                nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1)
             )
@@ -462,20 +514,26 @@ for run in range(RUNS):
             
             Phi = ConvNet(
                 nn.Sequential(
-                    nn.Conv1d(Nupa + Necmwf + Nsitu, 128, kernel_size = 3, padding = 'same'),
+                    nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same'),
                     nn.LeakyReLU(0.1),
-                    nn.Conv1d(128, Nupa + Necmwf + Nsitu, kernel_size = 3, padding = 'same')
+                    nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same')
                 )
             )
         #end
         
-        lit_model = LitModel( Phi, shapeData = (BATCH_SIZE, Nupa + Necmwf, FORMAT_SIZE),
+        if MM_ECMWF:
+            shape_data = (BATCH_SIZE, Nupa + Necmwf, FORMAT_SIZE)
+        else:
+            shape_data = (BATCH_SIZE, Nupa, FORMAT_SIZE)
+        #end
+        
+        lit_model = LitModel( Phi, shapeData = shape_data,
                               preprocess_params = test_set.preprocess_params
         )
         
         if LOAD_CKPT:
             
-            CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
+            CKPT_NAME = glob.glob(os.path.join(PATH_SOURCE, f'{run}-' + MODEL_SOURCE + '-epoch=*.ckpt'))[0]
             checkpoint_model = open(CKPT_NAME, 'rb')
             print(CKPT_NAME)
             lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
@@ -494,9 +552,9 @@ for run in range(RUNS):
                 filename = f'{run}-' + MODEL_NAME + '-{epoch:02d}' + name_append,
                 save_top_k = 1,
                 mode = 'min'
-            )
+        )
         trainer = pl.Trainer(**profiler_kwargs, callbacks = [model_checkpoint])
-                
+        
         trainer.fit(lit_model, train_loader, val_loader)
         performance_metrics['train_loss'][:, run] = lit_model.train_losses
         performance_metrics['val_loss'][:, run] = lit_model.val_losses
@@ -516,7 +574,7 @@ for run in range(RUNS):
         # saved_at = saved_model['saved_at_time']
         # name = saved_model['name']
         # print(f'\nModel : {name}, saved at {saved_at}')
-        CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + f'-epoch=*{name_append}.ckpt'))[0]
+        CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
         print(CKPT_NAME)
         checkpoint_model = open(CKPT_NAME, 'rb')
         lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
