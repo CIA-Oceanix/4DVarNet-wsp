@@ -398,7 +398,7 @@ COLOCATED   = False
 TRAIN       = True
 TEST        = True
 FIXED_POINT = False
-LOAD_CKPT   = True
+LOAD_CKPT   = False
 PRIOR       = 'AE'
 
 FORMAT_SIZE = 24
@@ -411,7 +411,7 @@ EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
-N_SOL_ITER  = 10
+N_SOL_ITER  = 5
 N_4DV_ITER  = 1
 DROPOUT     = 0.
 WEIGHT_DATA = 0.5
@@ -470,13 +470,12 @@ for run in range(RUNS):
     print('Run {}'.format(run))
     
     train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
-    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True)#, num_workers = NUM_WORKERS)
+    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = NUM_WORKERS)
     
     val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False)#, num_workers = NUM_WORKERS)
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = NUM_WORKERS)
     
     test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
-    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False)#, num_workers = NUM_WORKERS)
     
     Nupa = train_set.get_modality_data_size('upa')
     Necmwf = train_set.get_modality_data_size('wind_ecmwf')
@@ -540,7 +539,7 @@ for run in range(RUNS):
             
             CKPT_NAME = glob.glob(os.path.join(PATH_SOURCE, f'{run}-' + MODEL_SOURCE + '-epoch=*.ckpt'))[0]
             checkpoint_model = open(CKPT_NAME, 'rb')
-            print(CKPT_NAME)
+            print('\n\nCHECKPOINT (LOAD) : ' + CKPT_NAME + '\n\n')
             lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
             lit_model.load_state_dict(lit_model_state_dict)
             
@@ -570,7 +569,7 @@ for run in range(RUNS):
     if TEST:
         
         CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
-        print(CKPT_NAME)
+        print('\n\nCHECKPOINT (TEST) : ' + CKPT_NAME + '\n\n')
         checkpoint_model = open(CKPT_NAME, 'rb')
         lit_model_state_dict = torch.load(checkpoint_model)['state_dict']
         lit_model.load_state_dict(lit_model_state_dict)
