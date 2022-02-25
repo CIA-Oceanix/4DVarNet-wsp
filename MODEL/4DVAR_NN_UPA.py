@@ -398,7 +398,7 @@ COLOCATED   = False
 TRAIN       = True
 TEST        = True
 FIXED_POINT = False
-LOAD_CKPT   = False
+LOAD_CKPT   = True
 PRIOR       = 'AE'
 
 FORMAT_SIZE = 24
@@ -411,7 +411,7 @@ EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
-N_SOL_ITER  = 5
+N_SOL_ITER  = 10
 N_4DV_ITER  = 1
 DROPOUT     = 0.
 WEIGHT_DATA = 0.5
