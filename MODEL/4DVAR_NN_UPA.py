@@ -18,7 +18,6 @@ sys.path.append( os.path.join( os.getcwd(), '4dvar' ) )
 
 import pickle
 import numpy as np
-from datetime import datetime
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-white')
 import json
@@ -39,9 +38,11 @@ import solver as NN_4DVar
 if torch.cuda.is_available():
     device = 'cuda'
     gpus = -1
+    NUM_WORKERS = 64
 else:
     device = 'cpu'
     gpus = 0
+    NUM_WORKERS = 8
 #end
 
 
@@ -397,7 +398,7 @@ COLOCATED   = False
 TRAIN       = True
 TEST        = True
 FIXED_POINT = False
-LOAD_CKPT   = False
+LOAD_CKPT   = True
 PRIOR       = 'AE'
 
 FORMAT_SIZE = 24
@@ -410,7 +411,7 @@ EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
-N_SOL_ITER  = 5
+N_SOL_ITER  = 10
 N_4DV_ITER  = 1
 DROPOUT     = 0.
 WEIGHT_DATA = 0.5
@@ -469,13 +470,13 @@ for run in range(RUNS):
     print('Run {}'.format(run))
     
     train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
-    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True)
+    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = NUM_WORKERS)
     
     val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False)
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = NUM_WORKERS)
     
     test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
-    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False)
+    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = NUM_WORKERS)
     
     Nupa = train_set.get_modality_data_size('upa')
     Necmwf = train_set.get_modality_data_size('wind_ecmwf')
@@ -485,8 +486,10 @@ for run in range(RUNS):
     if TRAIN:
         
         if MM_ECMWF:
+            
             N_data = Nupa + Necmwf + Nsitu
         else:
+            
             N_data = Nupa + Nsitu
         #end
         
@@ -522,8 +525,10 @@ for run in range(RUNS):
         #end
         
         if MM_ECMWF:
+            
             shape_data = (BATCH_SIZE, Nupa + Necmwf, FORMAT_SIZE)
         else:
+            
             shape_data = (BATCH_SIZE, Nupa, FORMAT_SIZE)
         #end
         
@@ -559,21 +564,11 @@ for run in range(RUNS):
         performance_metrics['train_loss'][:, run] = lit_model.train_losses
         performance_metrics['val_loss'][:, run] = lit_model.val_losses
         
-        # torch.save({'trainer' : trainer, 'model' : lit_model, 
-        #             'name' : MODEL_NAME, 'saved_at_time' : datetime.now()},
-        #             open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'wb')
-        # )
     #end
     
     ''' MODEL TEST '''
     if TEST:
         
-        # saved_model = torch.load( open(os.path.join(PATH_MODEL, f'{MODEL_NAME}.pkl'), 'rb') )
-        # trainer = saved_model['trainer']
-        # lit_model = saved_model['model']
-        # saved_at = saved_model['saved_at_time']
-        # name = saved_model['name']
-        # print(f'\nModel : {name}, saved at {saved_at}')
         CKPT_NAME = glob.glob(os.path.join(PATH_MODEL, f'{run}-' + MODEL_NAME + '-epoch=*.ckpt'))[0]
         print(CKPT_NAME)
         checkpoint_model = open(CKPT_NAME, 'rb')
