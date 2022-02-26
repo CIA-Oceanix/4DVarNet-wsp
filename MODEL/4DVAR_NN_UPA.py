@@ -226,6 +226,23 @@ class LitModel(pl.LightningModule):
         mask_ws[data_ws == 0] = 0
         data_ws[data_ws.isnan()] = 0.
         
+        
+        if phase == 'test' and TEST_ECMWF is not None:
+            
+            if TEST_ECMWF == 'zero':
+                
+                data_we = torch.zeros_like(data_we)
+                
+            elif TEST_ECMWF == 'dmean':
+                
+                mean_we = torch.zeros_like(data_we)
+                for i in range(data_we.shape[0]):
+                    mean_we[i,:,:] = data_we[i].mean()
+                #end
+                data_we = mean_we
+            #end
+        #end        
+        
         '''Aggregate UPA and wind speed data in a single tensor
            This is done with an horizontal concatenation'''
         if not MM_ECMWF:
@@ -393,13 +410,14 @@ WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 MM_ECMWF    = True
 PLOTS       = False
-RUNS        = 10
+RUNS        = 1
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
 FIXED_POINT = False
 LOAD_CKPT   = False
 PRIOR       = 'AE'
+TEST_ECMWF  = 'dmean'
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR'
@@ -407,7 +425,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 200
+EPOCHS      = 10
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
@@ -444,6 +462,17 @@ if LOAD_CKPT:
     MODEL_NAME = f'{MODEL_NAME}_lckpt'
 else:
     MODEL_SOURCE = MODEL_NAME
+#end
+
+if TEST_ECMWF is not None:
+    
+    if TEST_ECMWF != 'zero' and TEST_ECMWF != 'dmean':
+        raise ValueError('ECMWF modification does not match available possibilities')
+    #end
+#end
+
+if TEST_ECMWF is not None:
+    MODEL_NAME = f'{MODEL_NAME}_{TEST_ECMWF}'
 #end
 
 PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)   
