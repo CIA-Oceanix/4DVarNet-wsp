@@ -391,14 +391,14 @@ class LitModel(pl.LightningModule):
 # CONSTANTS
 WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
-MM_ECMWF    = False
+MM_ECMWF    = True
 PLOTS       = False
 RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
 FIXED_POINT = False
-LOAD_CKPT   = True
+LOAD_CKPT   = False
 PRIOR       = 'AE'
 
 FORMAT_SIZE = 24
@@ -411,7 +411,7 @@ EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
-N_SOL_ITER  = 10
+N_SOL_ITER  = 5
 N_4DV_ITER  = 1
 DROPOUT     = 0.
 WEIGHT_DATA = 0.5
