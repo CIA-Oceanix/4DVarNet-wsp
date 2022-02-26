@@ -417,7 +417,7 @@ TEST        = True
 FIXED_POINT = False
 LOAD_CKPT   = False
 PRIOR       = 'AE'
-TEST_ECMWF  = 'dmean'
+TEST_ECMWF  = 'zero'
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR'
