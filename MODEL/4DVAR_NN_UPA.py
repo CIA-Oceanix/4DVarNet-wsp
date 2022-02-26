@@ -410,7 +410,7 @@ WIND_VALUES = 'SITU'
 DATA_TITLE  = '2011'
 MM_ECMWF    = True
 PLOTS       = False
-RUNS        = 1
+RUNS        = 10
 COLOCATED   = False
 TRAIN       = True
 TEST        = True
@@ -425,7 +425,7 @@ PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
 # HPARAMS
-EPOCHS      = 10
+EPOCHS      = 200
 BATCH_SIZE  = 32
 LATENT_DIM  = 20
 DIM_LSTM    = 100
