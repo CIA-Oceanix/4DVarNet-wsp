@@ -123,9 +123,9 @@ class LitModel(pl.LightningModule):
         self.val_losses = np.zeros(EPOCHS)
         
         if MM_ECMWF:
-            mod_shape_data = [Nupa + Necmwf + Nsitu, FORMAT_SIZE]
+            mod_shape_data = [N_UPA + N_ECMWF + N_SITU, FORMAT_SIZE]
         else:
-            mod_shape_data = [Nupa + Nsitu, FORMAT_SIZE]
+            mod_shape_data = [N_UPA + N_SITU, FORMAT_SIZE]
         #end
         
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
@@ -179,12 +179,12 @@ class LitModel(pl.LightningModule):
         #end
         
         batch_size = batch[0].shape[0]
-        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, Nupa)
-        data_we  = batch[1].reshape(batch_size, FORMAT_SIZE, Necmwf)
-        data_ws  = batch[2].reshape(batch_size, FORMAT_SIZE, Nsitu)
-        data_UPA = data_UPA.transpose(1, 2)
-        data_we  = data_we.transpose(1, 2)
-        data_ws  = data_ws.transpose(1, 2)
+        data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA)
+        data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF)
+        data_ws    = batch[2].reshape(batch_size, FORMAT_SIZE, N_SITU)
+        data_UPA   = data_UPA.transpose(1, 2)
+        data_we    = data_we.transpose(1, 2)
+        data_ws    = data_ws.transpose(1, 2)
         
         data_UPA[data_UPA.isnan()] = 0.
         data_ws[data_ws.isnan()] = 0.
@@ -203,12 +203,29 @@ class LitModel(pl.LightningModule):
         
         '''Reshape the input data'''
         batch_size = batch[0].shape[0]
-        data_UPA = batch[0].reshape(batch_size, FORMAT_SIZE, Nupa).clone()
-        data_we  = batch[1].reshape(batch_size, FORMAT_SIZE, Necmwf).clone()
-        data_ws  = batch[2].reshape(batch_size, FORMAT_SIZE, Nsitu).clone()
-        data_UPA = data_UPA.transpose(1, 2)
-        data_we  = data_we.transpose(1, 2)
-        data_ws  = data_ws.transpose(1, 2)
+        data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA).clone()
+        data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF).clone()
+        data_ws    = batch[2].reshape(batch_size, FORMAT_SIZE, N_SITU).clone()
+        data_UPA   = data_UPA.transpose(1, 2)
+        data_we    = data_we.transpose(1, 2)
+        data_ws    = data_ws.transpose(1, 2)
+        
+        ''' Possible change: set data_we to NaN, so to make masks zeros! '''
+        if phase == 'test' and TEST_ECMWF is not None:
+            
+            if TEST_ECMWF == 'zero':
+                
+                data_we = torch.zeros_like(data_we)
+                
+            elif TEST_ECMWF == 'dmean':
+                
+                mean_we = torch.zeros_like(data_we)
+                for i in range(data_we.shape[0]):
+                    mean_we[i,:,:] = data_we[i].mean()
+                #end
+                data_we = mean_we
+            #end
+        #end        
         
         '''Produce the masks according to the data sparsity patterns'''
         mask_UPA = torch.zeros_like(data_UPA)
@@ -225,23 +242,6 @@ class LitModel(pl.LightningModule):
         mask_ws[data_ws.isnan().logical_not()] = 1.
         mask_ws[data_ws == 0] = 0
         data_ws[data_ws.isnan()] = 0.
-        
-        
-        if phase == 'test' and TEST_ECMWF is not None:
-            
-            if TEST_ECMWF == 'zero':
-                
-                data_we = torch.zeros_like(data_we)
-                
-            elif TEST_ECMWF == 'dmean':
-                
-                mean_we = torch.zeros_like(data_we)
-                for i in range(data_we.shape[0]):
-                    mean_we[i,:,:] = data_we[i].mean()
-                #end
-                data_we = mean_we
-            #end
-        #end        
         
         '''Aggregate UPA and wind speed data in a single tensor
            This is done with an horizontal concatenation'''
@@ -267,9 +267,9 @@ class LitModel(pl.LightningModule):
             
             '''Split UPA and windspeed reconstructions and predictions and 
                reinstate them in the ``(batch_size, time_series_length, num_features)`` format'''
-            reco_UPA = outputs[:, :Nupa, :]
-            reco_we  = outputs[:, Nupa : Nupa + Necmwf, :]
-            reco_ws  = outputs[:, -Nsitu:, :]
+            reco_UPA = outputs[:, :N_UPA, :]
+            reco_we  = outputs[:, N_UPA : N_UPA + N_ECMWF, :]
+            reco_ws  = outputs[:, -N_SITU:, :]
             
             data_UPA = data_UPA.transpose(2, 1)
             reco_UPA = reco_UPA.transpose(2, 1) 
@@ -406,40 +406,46 @@ class LitModel(pl.LightningModule):
 
 
 # CONSTANTS
-WIND_VALUES = 'SITU'
-DATA_TITLE  = '2011'
-MM_ECMWF    = True
-PLOTS       = False
-RUNS        = 10
-COLOCATED   = False
-TRAIN       = True
-TEST        = True
-FIXED_POINT = False
-LOAD_CKPT   = False
-PRIOR       = 'AE'
-TEST_ECMWF  = 'zero'
+with open(os.path.join(os.getcwd(), 'cparams.json'), 'r') as filestream:
+    CPARAMS = json.load(filestream)
+filestream.close()
+
+WIND_VALUES = CPARAMS['WIND_VALUES']
+DATA_TITLE  = CPARAMS['DATA_TITLE']
+
+RUNS        = CPARAMS['RUNS']
+EPOCHS      = CPARAMS['EPOCHS']
+TRAIN       = CPARAMS['TRAIN']
+TEST        = CPARAMS['TEST']
+PLOTS       = CPARAMS['PLOTS']
+MM_ECMWF    = CPARAMS['MM_ECMWF']
+TEST_ECMWF  = CPARAMS['TEST_ECMWF']
+
+FIXED_POINT = CPARAMS['FIXED_POINT']
+LOAD_CKPT   = CPARAMS['LOAD_CKPT']
+PRIOR       = CPARAMS['PRIOR']
+
+N_SOL_ITER  = CPARAMS['N_SOL_ITER']
+NSOL_IT_REF = CPARAMS['NSOL_IT_REF']
+N_4DV_ITER  = CPARAMS['N_4DV_ITER']
+
+BATCH_SIZE  = CPARAMS['BATCH_SIZE']
+LATENT_DIM  = CPARAMS['LATENT_DIM']
+DIM_LSTM    = CPARAMS['DIM_LSTM']
+
+DROPOUT     = CPARAMS['DROPOUT']
+WEIGHT_DATA = CPARAMS['WEIGHT_DATA']
+WEIGHT_PRED = CPARAMS['WEIGHT_PRED']
+WEIGHT_WE   = CPARAMS['WEIGHT_WE']
+SOLVER_LR   = CPARAMS['SOLVER_LR']
+SOLVER_WD   = CPARAMS['SOLVER_WD']
+PHI_LR      = CPARAMS['PHI_LR']
+PHI_WD      = CPARAMS['PHI_WD']
 
 FORMAT_SIZE = 24
 MODEL_NAME  = '4DVAR'
 PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
-
-# HPARAMS
-EPOCHS      = 200
-BATCH_SIZE  = 32
-LATENT_DIM  = 20
-DIM_LSTM    = 100
-N_SOL_ITER  = 5
-N_4DV_ITER  = 1
-DROPOUT     = 0.
-WEIGHT_DATA = 0.5
-WEIGHT_PRED = 1.5
-WEIGHT_WE   = 1
-SOLVER_LR   = 1e-3
-SOLVER_WD   = 1e-5
-PHI_LR      = 1e-3
-PHI_WD      = 1e-5
-NSOL_IT_REF = 5
 
 print(f'Prior       : {PRIOR}')
 print(f'Fixed point : {FIXED_POINT}\n\n')
@@ -459,7 +465,7 @@ else:
 
 if LOAD_CKPT:
     MODEL_SOURCE = MODEL_NAME
-    MODEL_NAME = f'{MODEL_NAME}_lckpt'
+    MODEL_NAME = f'{MODEL_NAME}_lckpt_gs{N_SOL_ITER}'
 else:
     MODEL_SOURCE = MODEL_NAME
 #end
@@ -507,25 +513,25 @@ for run in range(RUNS):
     test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False)#, num_workers = NUM_WORKERS)
     
-    Nupa = train_set.get_modality_data_size('upa')
-    Necmwf = train_set.get_modality_data_size('wind_ecmwf')
-    Nsitu = train_set.get_modality_data_size('wind_situ')
+    N_UPA = train_set.get_modality_data_size('upa')
+    N_ECMWF = train_set.get_modality_data_size('wind_ecmwf')
+    N_SITU = train_set.get_modality_data_size('wind_situ')
     
     ''' MODEL TRAIN '''
     if TRAIN:
         
         if MM_ECMWF:
             
-            N_data = Nupa + Necmwf + Nsitu
+            N_DATA = N_UPA + N_ECMWF + N_SITU
         else:
             
-            N_data = Nupa + Nsitu
+            N_DATA = N_UPA + N_SITU
         #end
         
         if PRIOR == 'AE':
             
             encoder = torch.nn.Sequential(
-                nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same'),
+                nn.Conv1d(N_DATA, 128, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1),
                 nn.Conv1d(128, LATENT_DIM, kernel_size = 3, padding = 'same'),
@@ -535,7 +541,7 @@ for run in range(RUNS):
                 nn.Conv1d(LATENT_DIM, 128, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1),
-                nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same'),
+                nn.Conv1d(128, N_DATA, kernel_size = 3, padding = 'same'),
                 nn.Dropout(DROPOUT),
                 nn.LeakyReLU(0.1)
             )
@@ -546,19 +552,19 @@ for run in range(RUNS):
             
             Phi = ConvNet(
                 nn.Sequential(
-                    nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same'),
+                    nn.Conv1d(N_DATA, 128, kernel_size = 3, padding = 'same'),
                     nn.LeakyReLU(0.1),
-                    nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same')
+                    nn.Conv1d(128, N_DATA, kernel_size = 3, padding = 'same')
                 )
             )
         #end
         
         if MM_ECMWF:
             
-            shape_data = (BATCH_SIZE, Nupa + Necmwf, FORMAT_SIZE)
+            shape_data = (BATCH_SIZE, N_UPA + N_ECMWF, FORMAT_SIZE)
         else:
             
-            shape_data = (BATCH_SIZE, Nupa, FORMAT_SIZE)
+            shape_data = (BATCH_SIZE, N_UPA, FORMAT_SIZE)
         #end
         
         lit_model = LitModel( Phi, shapeData = shape_data,
@@ -641,25 +647,8 @@ windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
 
 
 ''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
-hyperparams = {
-    'EPOCHS'      : EPOCHS,
-    'BATCH_SIZE'  : BATCH_SIZE,
-    'LATENT_DIM'  : LATENT_DIM,
-    'DIM_LSTM'    : DIM_LSTM,
-    'N_SOL_ITER'  : N_SOL_ITER,
-    'N_4DV_ITER'  : N_4DV_ITER,
-    'DROPOUT'     : DROPOUT,
-    'WEIGHT_DATA' : WEIGHT_DATA,
-    'WEIGHT_PRED' : WEIGHT_PRED,
-    'SOLVER_LR'   : SOLVER_LR,
-    'SOLVER_WD'   : SOLVER_WD,
-    'PHI_LR'      : PHI_LR,
-    'PHI_WD'      : PHI_WD,
-    'PRED_ERROR'  : pred_error_metric.item(),
-    'R_SQUARED'   : r2_metric.item()
-}
 with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
-    json.dump(hyperparams, filestream, indent = 4)
+    json.dump(CPARAMS, filestream, indent = 4)
 #end
 filestream.close()
 
