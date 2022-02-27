@@ -447,8 +447,7 @@ MODEL_NAME  = '4DVAR'
 PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
-print(f'Prior       : {PRIOR}')
-print(f'Fixed point : {FIXED_POINT}\n\n')
+
 MODEL_NAME  = f'{MODEL_NAME}_{PRIOR}'
 
 if MM_ECMWF:
@@ -475,6 +474,9 @@ if TEST_ECMWF is not None:
     if TEST_ECMWF != 'zero' and TEST_ECMWF != 'dmean':
         raise ValueError('ECMWF modification does not match available possibilities')
     #end
+    
+    if MM_ECMWF:
+        raise ValueError('No MM ECMWF with TEST_ECMWF =/= None')
 #end
 
 if TEST_ECMWF is not None:
@@ -485,6 +487,23 @@ PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_SOURCE) and LOAD_CKPT: os.mkdir(PATH_SOURCE)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
+
+
+# Introduction
+print('Experiment:')
+print('------------------------------------------------------')
+print(f'Prior                             : {PRIOR}')
+print(f'Fixed point                       : {FIXED_POINT}')
+print(f'Runs                              : {RUNS}')
+print(f'Inlcude ECMWF                     : {MM_ECMWF}')
+print(f'Test mode ECMWF                   : {TEST_ECMWF}')
+print(f'Path Source                       : {PATH_SOURCE}')
+print(f'Path Target                       : {PATH_MODEL}')
+print(f'Model                             : {MODEL_NAME}')
+print(f'Load from checkpoint              : {LOAD_CKPT}')
+if not FIXED_POINT:
+    print(f'N iterations 4DVarNet             : {N_SOL_ITER}')
+    print(f'N iterations 4DVarNet (reference) : {NSOL_IT_REF}')
 
 '''
 Initialize the performance metrics data structures
