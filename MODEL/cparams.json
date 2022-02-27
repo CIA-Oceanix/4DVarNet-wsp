@@ -1,0 +1,32 @@
+{
+	"WIND_VALUES" : "SITU",
+	"DATA_TITLE"  : "2011",
+	
+	"RUNS"        : 1,
+	"EPOCHS"      : 10,
+	"TRAIN"       : true,
+	"TEST"        : true,
+	"PLOTS"       : false,
+	"MM_ECMWF"    : true,
+	"TEST_ECMWF"  : "dmean",
+	
+	"FIXED_POINT" : false,
+	"LOAD_CKPT"   : false,
+	"PRIOR"       : "AE",
+	
+	"N_SOL_ITER"  : 5,
+	"NSOL_IT_REF" : 5,
+	"N_4DV_ITER"  : 1,
+	
+	"BATCH_SIZE"  : 32,
+	"LATENT_DIM"  : 20,
+	"DIM_LSTM"    : 100,
+	"DROPOUT"     : 0.0,
+	"WEIGHT_DATA" : 0.5,
+	"WEIGHT_PRED" : 1.5,
+	"WEIGHT_WE"   : 1,
+	"SOLVER_LR"   : 1e-3,
+	"SOLVER_WD"   : 1e-5,
+	"PHI_LR"      : 1e-3,
+	"PHI_WD"      : 1e-5	
+}
