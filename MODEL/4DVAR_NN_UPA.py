@@ -478,8 +478,6 @@ if TEST_ECMWF is not None:
         raise ValueError('ECMWF modification does not match available possibilities')
     #end
     
-    # if MM_ECMWF:
-    #     raise ValueError('No MM ECMWF with TEST_ECMWF =/= None')
 #end
 
 if TEST_ECMWF is not None:
@@ -494,7 +492,7 @@ if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
 
 # Introduction
 print('Experiment:')
-print('------------------------------------------------------')
+print('----------------------------------------------------------------------')
 print(f'Prior                             : {PRIOR}')
 print(f'Fixed point                       : {FIXED_POINT}')
 print(f'Runs                              : {RUNS}')
@@ -507,6 +505,7 @@ print(f'Load from checkpoint              : {LOAD_CKPT}')
 if not FIXED_POINT:
     print(f'N iterations 4DVarNet             : {N_SOL_ITER}')
     print(f'N iterations 4DVarNet (reference) : {NSOL_IT_REF}')
+print('----------------------------------------------------------------------')
 
 '''
 Initialize the performance metrics data structures
@@ -524,7 +523,8 @@ performance_metrics = {
 
 
 for run in range(RUNS):
-    print('Run {}'.format(run))
+    print('\n\n----------------------------------------------------------------------')
+    print(f'Run {run}\n')
     
     train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True)#, num_workers = NUM_WORKERS)
