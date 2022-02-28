@@ -179,9 +179,9 @@ class LitModel(pl.LightningModule):
         #end
         
         batch_size = batch[0].shape[0]
-        data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA)
-        data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF)
-        data_ws    = batch[2].reshape(batch_size, FORMAT_SIZE, N_SITU)
+        data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA).clone()
+        data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF).clone()
+        data_ws    = batch[2].reshape(batch_size, FORMAT_SIZE, N_SITU).clone()
         data_UPA   = data_UPA.transpose(1, 2)
         data_we    = data_we.transpose(1, 2)
         data_ws    = data_ws.transpose(1, 2)
@@ -212,13 +212,16 @@ class LitModel(pl.LightningModule):
         
         ''' Possible change: set data_we to NaN, so to make masks zeros! '''
         if phase == 'test' and TEST_ECMWF is not None:
+            ''' If MM_ECMWF is true but TEST_ECMWF is false,
+                then the mulit-modal model is used, with no
+                modification to ECMWF wind speed '''
             
             if TEST_ECMWF == 'zero':
-                
+                print("zero")
                 data_we = torch.zeros_like(data_we)
                 
             elif TEST_ECMWF == 'dmean':
-                
+                print("dmean")
                 mean_we = torch.zeros_like(data_we)
                 for i in range(data_we.shape[0]):
                     mean_we[i,:,:] = data_we[i].mean()
@@ -475,8 +478,8 @@ if TEST_ECMWF is not None:
         raise ValueError('ECMWF modification does not match available possibilities')
     #end
     
-    if MM_ECMWF:
-        raise ValueError('No MM ECMWF with TEST_ECMWF =/= None')
+    # if MM_ECMWF:
+    #     raise ValueError('No MM ECMWF with TEST_ECMWF =/= None')
 #end
 
 if TEST_ECMWF is not None:
