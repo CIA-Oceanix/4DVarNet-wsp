@@ -18,6 +18,7 @@ sys.path.append( os.path.join( os.getcwd(), '4dvar' ) )
 
 import pickle
 import numpy as np
+from numpy.random import default_rng
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-white')
 import json
@@ -228,7 +229,7 @@ class LitModel(pl.LightningModule):
                 #end
                 data_we = mean_we
             #end
-        #end        
+        #end
         
         '''Produce the masks according to the data sparsity patterns'''
         mask_UPA = torch.zeros_like(data_UPA)
@@ -245,6 +246,21 @@ class LitModel(pl.LightningModule):
         mask_ws[data_ws.isnan().logical_not()] = 1.
         mask_ws[data_ws == 0] = 0
         data_ws[data_ws.isnan()] = 0.
+        
+        ''' Missing data : produce random masks '''
+        if IS_TRAIN is not None:
+            
+            for i in range(batch_size):
+                
+                num_indices = default_rng().choice(
+                    FORMAT_SIZE,
+                    size = np.int32(IS_TRAIN * FORMAT_SIZE),
+                    replace = False
+                )
+                rand_idx = list( num_indices )
+                mask_UPA[i, :, rand_idx] = 0.
+            #end
+        #end
         
         '''Aggregate UPA and wind speed data in a single tensor
            This is done with an horizontal concatenation'''
@@ -423,6 +439,7 @@ TEST        = CPARAMS['TEST']
 PLOTS       = CPARAMS['PLOTS']
 MM_ECMWF    = CPARAMS['MM_ECMWF']
 TEST_ECMWF  = CPARAMS['TEST_ECMWF']
+IS_TRAIN    = CPARAMS['IS_TRAIN']
 
 FIXED_POINT = CPARAMS['FIXED_POINT']
 LOAD_CKPT   = CPARAMS['LOAD_CKPT']
@@ -484,6 +501,11 @@ if TEST_ECMWF is not None:
     MODEL_NAME = f'{MODEL_NAME}_{TEST_ECMWF}'
 #end
 
+if IS_TRAIN is not None:
+    is_percentage = str(IS_TRAIN).replace('.', 'd')
+    MODEL_NAME = f'{MODEL_NAME}_is{is_percentage}'
+#end
+
 PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)   
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_SOURCE) and LOAD_CKPT: os.mkdir(PATH_SOURCE)
@@ -501,7 +523,7 @@ print(f'Test mode ECMWF                   : {TEST_ECMWF}')
 print(f'Path Source                       : {PATH_SOURCE}')
 print(f'Path Target                       : {PATH_MODEL}')
 print(f'Model                             : {MODEL_NAME}')
-print(f'Load from checkpoint              : {LOAD_CKPT}')
+print(f'Load from checkpoint              : {LOAD_CKPT} (if False, SOURCE == TARGET)')
 if not FIXED_POINT:
     print(f'N iterations 4DVarNet             : {N_SOL_ITER}')
     print(f'N iterations 4DVarNet (reference) : {NSOL_IT_REF}')
