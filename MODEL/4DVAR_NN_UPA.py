@@ -259,6 +259,7 @@ class LitModel(pl.LightningModule):
                 )
                 rand_idx = list( num_indices )
                 mask_UPA[i, :, rand_idx] = 0.
+                # anche i dati vengono azzerati !!!
             #end
         #end
         
@@ -273,6 +274,17 @@ class LitModel(pl.LightningModule):
         #end
         
         inputs_init = self.get_init_state(batch, state_init)
+        
+        if not MM_ECMWF:
+            inputs_init = inputs_init * torch.cat( (mask_UPA, 
+                                                    torch.ones_like(data_ws)), 
+                                                  dim = 1 )
+        else:
+            inputs_init = inputs_init * torch.cat( (mask_UPA, 
+                                                    torch.ones_like(data_we),
+                                                    torch.ones_like(data_ws)), 
+                                                  dim = 1 )
+        #end
         
         with torch.set_grad_enabled(True):
             
@@ -423,6 +435,7 @@ class LitModel(pl.LightningModule):
 # MAIN
 ###############################################################################
 
+# ! IMPLICIT NONE
 
 # CONSTANTS
 with open(os.path.join(os.getcwd(), 'cparams.json'), 'r') as filestream:
@@ -467,6 +480,7 @@ MODEL_NAME  = '4DVAR'
 PATH_DATA   = os.getenv('PATH_DATA')
 PATH_MODEL  = os.getenv('PATH_MODEL')
 
+CPARAMS.update({'FORMAT_SIZE' : FORMAT_SIZE})
 
 MODEL_NAME  = f'{MODEL_NAME}_{PRIOR}'
 
