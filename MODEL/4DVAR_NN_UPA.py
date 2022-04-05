@@ -86,7 +86,6 @@ class ConvNet(nn.Module):
 #end
 
 
-
 class Model_H(torch.nn.Module):
     
     def __init__(self, shape_data, dim = 1):
@@ -109,13 +108,12 @@ class LitModel(pl.LightningModule):
     def __init__(self, Phi, shapeData, preprocess_params):
         
         super(LitModel, self).__init__()
-    
         
         self.Phi = Phi
         self.hparams.dim_grad_solver = DIM_LSTM
         self.hparams.dropout = DROPOUT
         self.hparams.n_solver_iter = N_SOL_ITER
-        self.hparams.n_fourdvar_iter = N_4DV_ITER  # con n = 1 torniamo alla versione plain
+        self.hparams.n_fourdvar_iter = N_4DV_ITER
         self.hparams.automatic_optimization = True
         self.preprocess_params = preprocess_params
         self.test_rmse = np.float64(0.)
@@ -134,7 +132,7 @@ class LitModel(pl.LightningModule):
             Phi,                              # Dynamical prior   
             Model_H(shapeData),               # Observation operator
             NN_4DVar.model_GradUpdateLSTM(    # m_Grad
-                mod_shape_data,               # m_Grad : Shape Data
+                mod_shape_data,                  # m_Grad : Shape Data
                 False,                           # m_Grad : Use Periodic Bnd
                 self.hparams.dim_grad_solver,    # m_Grad : Dim LSTM
                 self.hparams.dropout,            # m_Grad : Dropout
@@ -259,8 +257,13 @@ class LitModel(pl.LightningModule):
                 )
                 rand_idx = list( num_indices )
                 mask_UPA[i, :, rand_idx] = 0.
-                # anche i dati vengono azzerati !!!
             #end
+        #end
+        
+        ''' k-steps-ahead prediction : produce proper masks '''
+        if KSA_TRAIN is not None:
+            
+            mask_UPA[:, :, np.int32(KSA_TRAIN):] = 0.
         #end
         
         '''Aggregate UPA and wind speed data in a single tensor
@@ -291,7 +294,7 @@ class LitModel(pl.LightningModule):
             inputs_init = torch.autograd.Variable(inputs_init, requires_grad = True)
             
             if FIXED_POINT:
-                outputs = self.Phi(data_input) # Fixed point
+                outputs = self.Phi(data_input)
             else:
                 outputs, hidden, cell, normgrad = self.model(inputs_init, data_input, mask_input)                
             #end
@@ -303,8 +306,8 @@ class LitModel(pl.LightningModule):
             reco_ws  = outputs[:, -N_SITU:, :]
             
             data_UPA = data_UPA.transpose(2, 1)
-            reco_UPA = reco_UPA.transpose(2, 1) 
-            mask_UPA = mask_UPA.transpose(2, 1) 
+            reco_UPA = reco_UPA.transpose(2, 1)
+            mask_UPA = mask_UPA.transpose(2, 1)
             
             data_we = data_we.transpose(2, 1)
             reco_we = reco_we.transpose(2, 1)
@@ -453,6 +456,7 @@ PLOTS       = CPARAMS['PLOTS']
 MM_ECMWF    = CPARAMS['MM_ECMWF']
 TEST_ECMWF  = CPARAMS['TEST_ECMWF']
 IS_TRAIN    = CPARAMS['IS_TRAIN']
+KSA_TRAIN   = CPARAMS['KSA_TRAIN']
 
 FIXED_POINT = CPARAMS['FIXED_POINT']
 LOAD_CKPT   = CPARAMS['LOAD_CKPT']
@@ -508,7 +512,6 @@ if TEST_ECMWF is not None:
     if TEST_ECMWF != 'zero' and TEST_ECMWF != 'dmean':
         raise ValueError('ECMWF modification does not match available possibilities')
     #end
-    
 #end
 
 if TEST_ECMWF is not None:
@@ -518,6 +521,11 @@ if TEST_ECMWF is not None:
 if IS_TRAIN is not None:
     is_percentage = str(IS_TRAIN).replace('.', 'd')
     MODEL_NAME = f'{MODEL_NAME}_is{is_percentage}'
+#end
+
+if KSA_TRAIN is not None:
+    ksa_steps = str(KSA_TRAIN) + 'hours'
+    MODEL_NAME = f'{MODEL_NAME}_ksa{ksa_steps}'
 #end
 
 PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)   
@@ -552,6 +560,7 @@ windspeed_rmses = {
         'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
 }
 predictions = list()
+r2_scores = list()
 performance_metrics = {
         'train_loss' : np.zeros((EPOCHS, RUNS)),
         'val_loss'   : np.zeros((EPOCHS, RUNS))
@@ -683,7 +692,8 @@ for run in range(RUNS):
         u_reco = lit_model.samples_to_save[0]['u_reco'].cpu().detach().numpy()
         
         pred_error_metric = NormLoss((u_data - u_reco), mask = None, divide = True, rmse = True)
-        mask_central = torch.zeros((u_data.shape)); mask_central[:, FORMAT_SIZE // 2, :] = 1
+        mask_central = torch.zeros((u_data.shape))
+        mask_central[:, FORMAT_SIZE // 2, :] = 1
         pred_error_metric_central = NormLoss((u_data - u_reco), mask = mask_central, divide = True, rmse = True)
         r2_metric = r2_score(u_data.reshape(-1,1), u_reco.reshape(-1,1))
         
@@ -691,7 +701,7 @@ for run in range(RUNS):
         print('RMSE     = {:.4f}'.format(pred_error_metric))
         windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
         windspeed_rmses['only_UPA']['u_c'][run] = pred_error_metric_central
-        
+        r2_scores.appendt(r2_metric)
         predictions.append( u_reco )
     #end
 #end
@@ -704,25 +714,34 @@ windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = T
 windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
 
 
-''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
-with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filestream:
-    json.dump(CPARAMS, filestream, indent = 4)
+''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE '''
+with open(os.path.join(PATH_MODEL, 'HYPERPARAMS.json'), 'w') as filename:
+    json.dump(CPARAMS, filename, indent = 4)
 #end
-filestream.close()
+filename.close()
 
+''' SERIALIZE WIND SPEED VALUES '''
+with open(os.path.join(PATH_MODEL, 'wind_data_medianreco.pkl'), 'wb') as filename:
+    pickle.dump({'u_data' : wdata, 'u_pred' : preds}, filename)
+filename.close()
+
+''' SERIALIZE PERFORMANCE METRICS '''
 with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_wsm.pkl'), 'wb') as filename:
     pickle.dump(windspeed_rmses, filename)
 filename.close()
 
-with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_perfmetrics.pkl'), 'wb') as filestream:
-    pickle.dump(performance_metrics, filestream)
-filestream.close()
+''' SERIALIZE TRAINING METRICS '''
+with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_perfmetrics.pkl'), 'wb') as filename:
+    pickle.dump(performance_metrics, filename)
+filename.close()
 
-with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as f:
-    f.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-    f.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
+with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
+    filename.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
+    filename.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
                                                   windspeed_rmses['only_UPA']['u'].std()))
-    f.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
+    filename.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
                                                   windspeed_rmses['only_UPA']['u_c'].std()))
-    f.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
-f.close()
+    filename.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
+    filename.write('R² score         ; {:.2f}\n'.format(np.array(r2_scores).mean()))
+filename.close()
