@@ -701,7 +701,7 @@ for run in range(RUNS):
         print('RMSE     = {:.4f}'.format(pred_error_metric))
         windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
         windspeed_rmses['only_UPA']['u_c'][run] = pred_error_metric_central
-        r2_scores.appendt(r2_metric)
+        r2_scores.append(r2_metric)
         predictions.append( u_reco )
     #end
 #end
