@@ -264,6 +264,7 @@ class LitModel(pl.LightningModule):
         if KSA_TRAIN is not None:
             
             mask_UPA[:, :, np.int32(KSA_TRAIN):] = 0.
+            mask_we[:, :, np.int32(KSA_TRAIN):] = 0.
         #end
         
         '''Aggregate UPA and wind speed data in a single tensor
