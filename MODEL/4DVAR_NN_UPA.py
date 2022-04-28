@@ -68,6 +68,18 @@ class AutoEncoder(nn.Module):
 #end
 
 
+class UNet(nn.Module):
+    
+    def __init__(self):
+        pass
+    #end
+    
+    def forward(self):
+        pass
+    #end
+#end
+
+
 class ConvNet(nn.Module):
     
     def __init__(self, net):
