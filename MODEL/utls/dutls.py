@@ -210,7 +210,7 @@ class SMData(Dataset):
                  (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
         class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
         
-        class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) )
+        class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) ).to(device)
         
         self.WIND_situ = class_ws
     #end        
