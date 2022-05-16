@@ -446,8 +446,6 @@ class LitModel(pl.LightningModule):
                 loss_data = NormLoss((data_UPA - reco_UPA), mask = mask_UPA, divide = True, dformat = 'mtn')
                 loss_ws = CrossEntropyLoss(data_ws, reco_ws, mask = mask_ws, divide = True, dformat = 'mtn') 
                 
-                print('Loss ws (CE) = ', loss_ws)
-                                
                 if MM_ECMWF:
                     loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
                     loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
@@ -668,9 +666,13 @@ print('----------------------------------------------------------------------')
 Initialize the performance metrics data structures
 '''
 windspeed_rmses = {
-        'only_SAR'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
-        'only_UPA'  : {'u' : np.zeros(RUNS), 'u_c' : np.zeros(RUNS)},
-        'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
+    'only_SAR'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
+    'only_UPA'  : {'u' : np.zeros(RUNS), 'u_c' : np.zeros(RUNS)},
+    'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
+}
+windspeed_accrs = {
+    'classwise' : 0.,
+    'total'     : 0.
 }
 predictions = list()
 r2_scores = list()
@@ -678,6 +680,10 @@ performance_metrics = {
         'train_loss' : np.zeros((EPOCHS, RUNS)),
         'val_loss'   : np.zeros((EPOCHS, RUNS))
 }
+classwise_accuracies = list()
+total_accuracies = list()
+
+u_datas = list()
 
 
 for run in range(RUNS):
@@ -812,33 +818,85 @@ for run in range(RUNS):
         u_data = lit_model.samples_to_save[0]['u_data'].cpu().detach().numpy()
         u_reco = lit_model.samples_to_save[0]['u_reco'].cpu().detach().numpy()
         
-        # if TASK == class:
+        u_datas.append(u_data)
+                
+        if TASK == 'class':
+            
             # u_pred = torch.nn.functional.softmax(u_pred, dim = 2).bernoulli()
             # calcola accuracy e accuracy per classe
             # report : media accuracy, non RMSE e R²
+            
+            u_pred = torch.nn.functional.softmax(torch.Tensor(u_reco), dim = 2).bernoulli()
+            
+            # classwise accuracy
+            classwise_accuracy = np.zeros(N_SITU)
+            for n in range(N_SITU):
+                ud = torch.Tensor(u_data)
+                up = torch.Tensor(u_pred)
+                classwise_accuracy[n] = (ud[:,:,n] == up[:,:,n]).sum() / (u_data.shape[0] * u_data.shape[1])
+            #end
+            classwise_accuracies.append(classwise_accuracy)
+            
+            # total accuracy
+            u_data_cat = torch.argmax(torch.Tensor(u_data), dim = 2).flatten()
+            u_pred_cat = torch.argmax(torch.Tensor(u_pred), dim = 2).flatten()
+            total_accuracy = (u_data_cat == u_pred_cat).sum() / u_data_cat.shape[0]
+            total_accuracies.append(total_accuracy)
+            
+            # gather predictions
+            predictions.append(u_pred)
+            
+        elif TASK == 'reco':
+            
+            pred_error_metric = NormLoss((u_data - u_reco), mask = None, divide = True, rmse = True)
+            mask_central = torch.zeros((u_data.shape))
+            mask_central[:, FORMAT_SIZE // 2, :] = 1
+            pred_error_metric_central = NormLoss((u_data - u_reco), mask = mask_central, divide = True, rmse = True)
+            r2_metric = r2_score(u_data.reshape(-1,1), u_reco.reshape(-1,1))
+            
+            print('R² score = {:.4f}'.format(r2_metric))
+            print('RMSE     = {:.4f}'.format(pred_error_metric))
+            windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
+            windspeed_rmses['only_UPA']['u_c'][run] = pred_error_metric_central
+            r2_scores.append(r2_metric)
+            predictions.append( u_reco )
+        #end
         
-        
-        pred_error_metric = NormLoss((u_data - u_reco), mask = None, divide = True, rmse = True)
-        mask_central = torch.zeros((u_data.shape))
-        mask_central[:, FORMAT_SIZE // 2, :] = 1
-        pred_error_metric_central = NormLoss((u_data - u_reco), mask = mask_central, divide = True, rmse = True)
-        r2_metric = r2_score(u_data.reshape(-1,1), u_reco.reshape(-1,1))
-        
-        print('R² score = {:.4f}'.format(r2_metric))
-        print('RMSE     = {:.4f}'.format(pred_error_metric))
-        windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
-        windspeed_rmses['only_UPA']['u_c'][run] = pred_error_metric_central
-        r2_scores.append(r2_metric)
-        predictions.append( u_reco )
     #end
 #end
 
+if TASK == 'reco':
+    ''' Median of the prediction to produce the voted-by-models prediction '''
+    preds = torch.Tensor( np.median( np.array(predictions), axis = 0 ) )
+    wdata = torch.Tensor( u_data )
+    windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = True)
+    windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
 
-''' Median of the prediction to produce the voted-by-models prediction '''
-preds = torch.Tensor( np.median( np.array(predictions), axis = 0 ) )
-wdata = torch.Tensor( u_data )
-windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = True)
-windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
+elif TASK == 'class':
+    
+    windspeed_accrs['classwise'] = np.array(classwise_accuracies).mean(axis = 0)
+    windspeed_accrs['total'] = np.array(total_accuracies).mean()
+    
+    # models vote for most likely classes
+    wdata = np.argmax(np.array( u_data ), axis = 2).flatten()
+    for k in range(predictions.__len__()):
+        predictions[k] = np.argmax(np.array( predictions[k] ), axis = 2).flatten()
+    #end
+    
+    predictions = np.array(predictions).T
+    pred_counts = np.zeros((predictions.shape[0], N_SITU))
+    
+    for i in range(u_data.shape[0]):
+        for n in range(N_SITU):
+            pred_counts[i,n] = np.count_nonzero(predictions[i] == n)
+        #end
+    #end
+    
+    preds = np.argmax(predictions, axis = 1)
+    windspeed_baggr = (wdata == preds).sum() / wdata.shape[0]
+    windspeed_accrs['aggr'] = windspeed_baggr
+    
+#end
 
 
 ''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE '''
@@ -852,23 +910,39 @@ with open(os.path.join(PATH_MODEL, 'wind_data_medianreco.pkl'), 'wb') as filenam
     pickle.dump({'u_data' : wdata, 'u_pred' : preds}, filename)
 filename.close()
 
-''' SERIALIZE PERFORMANCE METRICS '''
-with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_wsm.pkl'), 'wb') as filename:
-    pickle.dump(windspeed_rmses, filename)
-filename.close()
-
 ''' SERIALIZE TRAINING METRICS '''
 with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_perfmetrics.pkl'), 'wb') as filename:
     pickle.dump(performance_metrics, filename)
 filename.close()
 
-''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
-with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
-    filename.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-    filename.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
-                                                  windspeed_rmses['only_UPA']['u'].std()))
-    filename.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
-                                                  windspeed_rmses['only_UPA']['u_c'].std()))
-    filename.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
-    filename.write('R² score         ; {:.2f}\n'.format(np.array(r2_scores).mean()))
-filename.close()
+if TASK == 'reco':
+    
+    ''' SERIALIZE PERFORMANCE METRICS '''
+    with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_wsm.pkl'), 'wb') as filename:
+        pickle.dump(windspeed_rmses, filename)
+    filename.close()
+    
+    ''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
+    with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
+        filename.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
+        filename.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
+                                                      windspeed_rmses['only_UPA']['u'].std()))
+        filename.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
+                                                      windspeed_rmses['only_UPA']['u_c'].std()))
+        filename.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
+        filename.write('R² score         ; {:.2f}\n'.format(np.array(r2_scores).mean()))
+    filename.close()
+
+elif TASK == 'class':
+    
+    ''' SERIALIZE PERFORMANCE METRICS '''
+    with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_wsm.pkl'), 'wb') as filename:
+        pickle.dump(windspeed_accrs, filename)
+    filename.close()
+    
+    ''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
+    with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
+        filename.write('Mean accuracy      ; {:.4f}\n'.format(windspeed_accrs['total']))
+        filename.write('Median             ; {:.4f}\n'.format(windspeed_baggr))
+    filename.close()
+#end
