@@ -1,25 +1,29 @@
-import numpy as np
+
 import torch
 
 class CTensor(torch.Tensor):
-
+    
     def __init__(self, data):
         super(CTensor, self).__init__()
         
         self.data = torch.Tensor(data)
     #end
-    
-    def type_convert(self, dtype):
         
-        self.data = torch.Tensor(self.data).type(dtype)
+    def remove_nans(self):
+        
+        self.data[self.data.isnan()] = 0.
     #end
     
-    def get_mask(self):
+    def get_mask(self, remove_nans = True):
         
         mask = torch.zeros_like(self.data)
         mask[self.data.isnan().logical_not()] = 1.
         mask[self.data == 0] = 0
-        self.data[self.data.isnan()] = 0.
+        
+        if remove_nans:
+            self.remove_nans()
+        #end
+        
         return mask
     #end
     
@@ -30,12 +34,25 @@ class CTensor(torch.Tensor):
         return self_mask.sum().div(num_features)
     #end
     
+    def set_nparams(self, nparams):
+        
+        self.nparams = nparams
+    #end
+    
+    def denormalize(self, inplace = False):
+        
+        denorm_data = (self.data - self.nparams[0]) / (self.nparams[1] - self.nparams[0])
+        
+        if inplace:
+            self.data = denorm_data
+        else:
+            return denorm_data
+        #end
+    #end
+    
     def forward(self):
+        
         return self.data
     #end
 #end
 
-
-x = np.arange(25).reshape(5,5) * 1. + 1
-x[[2,3],:] = np.nan
-y = CTensor(x)

@@ -31,7 +31,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from sklearn.metrics import r2_score
 
-from tutls import L2NormLoss, NormLoss, xavier_weights_initialization
+from tutls import L2NormLoss, NormLoss, CrossEntropyLoss, xavier_weights_initialization
 from dutls import SMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 import solver as NN_4DVar
@@ -66,6 +66,65 @@ class AutoEncoder(nn.Module):
         return reco
     #end
 #end
+
+class AutoEncoder_regression(nn.Module):
+    
+    def __init__(self, N_data, latent_dim):
+        super(AutoEncoder_regression, self).__init__()
+        
+        self.econv1 = nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same')
+        self.enl1   = nn.LeakyReLU(0.1)
+        self.econv2 = nn.Conv1d(128, latent_dim, kernel_size = 3, padding = 'same')
+        
+        self.dconv1 = nn.Conv1d(latent_dim, 128, kernel_size = 3, padding = 'same')
+        self.dnl1   = nn.LeakyReLU(0.1)
+        self.dconv2 = nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same')
+        self.dnl2   = nn.LeakyReLU(0.1)
+    #end
+    
+    def forward(self, data):
+        
+        h = self.enl1( self.econv1(data) )
+        h = self.econv2(h)
+        h = self.dnl1( self.dconv1(h) )
+        out = self.dnl2( self.dconv2(h) )
+        
+        return out
+    #end
+#end
+
+
+class AutoEncoder_classification(nn.Module):
+    
+    def __init__(self, N_data, latent_dim, N_situ):
+        super(AutoEncoder_classification, self).__init__()
+        
+        self.econv1 = nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same')
+        self.enl1   = nn.LeakyReLU(0.1)
+        self.econv2 = nn.Conv1d(128, latent_dim, kernel_size = 3, padding = 'same')
+        
+        self.dconv1      = nn.Conv1d(latent_dim, 128, kernel_size = 3, padding = 'same')
+        self.dnl1        = nn.LeakyReLU(0.1)
+        self.dconv2_data = nn.Conv1d(128, N_data - N_situ, kernel_size = 3, padding = 'same')
+        self.dnl2_data   = nn.LeakyReLU(0.1)
+        self.dconv2_ws   = nn.Conv1d(128, N_situ, kernel_size = 3, padding = 'same')
+        self.dnl2_ws     = nn.LogSoftmax(dim = 2)
+    #end
+    
+    def forward(self, data):
+        
+        h = self.enl1( self.econv1(data) )
+        h = self.econv2(h)
+        h = self.dnl1( self.dconv1(h) )
+        reco_data = self.dnl2_data( self.dconv2_data(h) )
+        reco_ws = self.dconv2_ws(h)
+        # reco_ws = self.dnl2_ws(reco_ws)
+        
+        out = torch.cat((reco_data, reco_ws), dim = 1)
+        return out
+    #end
+#end
+
 
 
 class UNet(nn.Module):
@@ -202,7 +261,7 @@ class LitModel(pl.LightningModule):
         data_we[data_we.isnan()] = 0.
         
         if not MM_ECMWF:
-            state = torch.cat( (data_UPA, 0. * data_ws), dim = 1)
+            state = torch.cat( (data_UPA, 0. * data_ws), dim = 1 )
         else:
             state = torch.cat( (data_UPA, data_we, 0. * data_ws), dim = 1 )
         #end
@@ -213,6 +272,11 @@ class LitModel(pl.LightningModule):
     def compute_loss(self, batch, phase = 'train', state_init = None):
         
         '''Reshape the input data'''
+        '''
+        NOTE : If the task is classification, the dutls.SMData class 
+        takes charge of doing the Beaufort class quantization and the
+        one-hot encoding of real wind speed values
+        '''
         batch_size = batch[0].shape[0]
         data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA).clone()
         data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF).clone()
@@ -220,6 +284,7 @@ class LitModel(pl.LightningModule):
         data_UPA   = data_UPA.transpose(1, 2)
         data_we    = data_we.transpose(1, 2)
         data_ws    = data_ws.transpose(1, 2)
+        
         
         ''' Possible change: set data_we to NaN, so to make masks zeros! '''
         if phase == 'test' and TEST_ECMWF is not None:
@@ -309,7 +374,7 @@ class LitModel(pl.LightningModule):
             if FIXED_POINT:
                 outputs = self.Phi(data_input)
             else:
-                outputs, hidden, cell, normgrad = self.model(inputs_init, data_input, mask_input)                
+                outputs, hidden, cell, normgrad = self.model(inputs_init, data_input, mask_input)
             #end
             
             '''Split UPA and windspeed reconstructions and predictions and 
@@ -332,16 +397,21 @@ class LitModel(pl.LightningModule):
             
             if phase == 'test' or phase == 'val':
                 
-                '''If test, then denormalize the data and append them in a list
-                   so to plot them in the end'''
+                ''' If test, then denormalize the data and append them in a list
+                   so to plot them in the end '''
                 data_UPA = self.undo_preprocess(data_UPA, self.preprocess_params['upa'])
                 reco_UPA = self.undo_preprocess(reco_UPA, self.preprocess_params['upa'])
                 data_we  = self.undo_preprocess(data_we,  self.preprocess_params['wind_ecmwf'])
                 reco_we  = self.undo_preprocess(reco_we,  self.preprocess_params['wind_ecmwf'])
-                data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['wind_situ'])
-                reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['wind_situ'])
                 
-                '''Recreate the outputs variable'''
+                if TASK == 'reco':
+                    ''' If the task is classification, then it makes no sense
+                        to denormalize wind classes probabilities '''
+                    data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['wind_situ'])
+                    reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['wind_situ'])
+                #end
+                
+                ''' Recreate the outputs variable '''
                 outputs = { 'y_data' : data_UPA, 'y_reco' : reco_UPA,
                             'u_data' : data_ws,  'u_reco' : reco_ws,
                             'w_data' : data_we,  'w_reco' : reco_we
@@ -352,22 +422,44 @@ class LitModel(pl.LightningModule):
                 #end
             #end
             
-            '''Loss computation. Note the use of the masks and see the ``NormLoss`` documentation in
-               the devoted module'''
-            loss_data = NormLoss((data_UPA - reco_UPA), mask = mask_UPA, divide = True, dformat = 'mtn')
-            loss_ws = NormLoss((data_ws - reco_ws), mask = mask_ws, divide = True, dformat = 'mtn')
-            
-            if MM_ECMWF:
-                loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
-                loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
-                return dict({'loss' : loss, 'loss_reco' : loss_data, 
-                             'loss_we' : loss_we, 'loss_pred' : loss_ws}), outputs
-            else:
-                loss = WEIGHT_DATA * loss_data + WEIGHT_PRED * loss_ws
-                return dict({'loss' : loss, 'loss_reco' : loss_data, 
-                             'loss_pred' : loss_ws}), outputs
+            if TASK == 'reco':
+                ''' Loss computation. Note the use of the masks and see the ``NormLoss`` documentation in
+                   the devoted module '''
+                loss_data = NormLoss((data_UPA - reco_UPA), mask = mask_UPA, divide = True, dformat = 'mtn')
+                loss_ws = NormLoss((data_ws - reco_ws), mask = mask_ws, divide = True, dformat = 'mtn')
+                
+                if MM_ECMWF:
+                    loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
+                    loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
+                    return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                                 'loss_we' : loss_we, 'loss_pred' : loss_ws}), outputs
+                else:
+                    loss = WEIGHT_DATA * loss_data + WEIGHT_PRED * loss_ws
+                    return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                                 'loss_pred' : loss_ws}), outputs
+                    #end
                 #end
-            #end                
+            
+            elif TASK == 'class':
+                # loss = MSE(UPA and ECMWF) + BCE(wind speed classes)
+                
+                loss_data = NormLoss((data_UPA - reco_UPA), mask = mask_UPA, divide = True, dformat = 'mtn')
+                loss_ws = CrossEntropyLoss(data_ws, reco_ws, mask = mask_ws, divide = True, dformat = 'mtn') 
+                
+                print('Loss ws (CE) = ', loss_ws)
+                                
+                if MM_ECMWF:
+                    loss_we = NormLoss((data_we - reco_we), mask = mask_we, divide = True, dformat = 'mtn')
+                    loss = WEIGHT_DATA * loss_data + WEIGHT_WE * loss_we + WEIGHT_PRED * loss_ws
+                    return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                                 'loss_we' : loss_we, 'loss_pred' : loss_ws}), outputs
+                else:
+                    loss = WEIGHT_DATA * loss_data + WEIGHT_PRED * loss_ws
+                    return dict({'loss' : loss, 'loss_reco' : loss_data, 
+                                 'loss_pred' : loss_ws}), outputs
+                    #end
+                #end
+            #end
         #end
     #end
     
@@ -470,6 +562,7 @@ MM_ECMWF    = CPARAMS['MM_ECMWF']
 TEST_ECMWF  = CPARAMS['TEST_ECMWF']
 IS_TRAIN    = CPARAMS['IS_TRAIN']
 KSA_TRAIN   = CPARAMS['KSA_TRAIN']
+TASK        = CPARAMS['TASK']
 
 FIXED_POINT = CPARAMS['FIXED_POINT']
 LOAD_CKPT   = CPARAMS['LOAD_CKPT']
@@ -507,6 +600,12 @@ else:
     MODEL_NAME = f'{MODEL_NAME}_SM'
 #end
 
+if TASK == 'reco':
+    MODEL_NAME = f'{MODEL_NAME}_reco'
+elif TASK == 'class':
+    MODEL_NAME = f'{MODEL_NAME}_class'
+#end
+
 if FIXED_POINT:
     MODEL_NAME = f'{MODEL_NAME}_fp1it'
 else:
@@ -541,7 +640,7 @@ if KSA_TRAIN is not None:
     MODEL_NAME = f'{MODEL_NAME}_ksa{ksa_steps}'
 #end
 
-PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)   
+PATH_SOURCE = os.path.join(PATH_MODEL, MODEL_SOURCE)
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_SOURCE) and LOAD_CKPT: os.mkdir(PATH_SOURCE)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
@@ -559,6 +658,7 @@ print(f'Path Source                       : {PATH_SOURCE}')
 print(f'Path Target                       : {PATH_MODEL}')
 print(f'Model                             : {MODEL_NAME}')
 print(f'Load from checkpoint              : {LOAD_CKPT} (if False, SOURCE == TARGET)')
+print(f'Task                              : {TASK}')
 if not FIXED_POINT:
     print(f'N iterations 4DVarNet             : {N_SOL_ITER}')
     print(f'N iterations 4DVarNet (reference) : {NSOL_IT_REF}')
@@ -584,14 +684,14 @@ for run in range(RUNS):
     print('\n\n----------------------------------------------------------------------')
     print(f'Run {run}\n')
     
-    train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
-    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True)#, num_workers = NUM_WORKERS)
+    train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011', TASK)
+    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = NUM_WORKERS)
     
-    val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False)#, num_workers = NUM_WORKERS)
+    val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011', TASK)
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = NUM_WORKERS)
     
-    test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
-    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False)#, num_workers = NUM_WORKERS)
+    test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011', TASK)
+    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = NUM_WORKERS)
     
     N_UPA = train_set.get_modality_data_size('upa')
     N_ECMWF = train_set.get_modality_data_size('wind_ecmwf')
@@ -610,24 +710,32 @@ for run in range(RUNS):
         
         if PRIOR == 'AE':
             
-            encoder = torch.nn.Sequential(
-                nn.Conv1d(N_DATA, 128, kernel_size = 3, padding = 'same'),
-                nn.Dropout(DROPOUT),
-                nn.LeakyReLU(0.1),
-                nn.Conv1d(128, LATENT_DIM, kernel_size = 3, padding = 'same'),
-                nn.Dropout(DROPOUT)
-            )
-            decoder = torch.nn.Sequential(
-                nn.Conv1d(LATENT_DIM, 128, kernel_size = 3, padding = 'same'),
-                nn.Dropout(DROPOUT),
-                nn.LeakyReLU(0.1),
-                nn.Conv1d(128, N_DATA, kernel_size = 3, padding = 'same'),
-                nn.Dropout(DROPOUT),
-                nn.LeakyReLU(0.1)
-            )
+            if 1 == 0:
+                encoder = torch.nn.Sequential(
+                    nn.Conv1d(N_DATA, 128, kernel_size = 3, padding = 'same'),
+                    nn.Dropout(DROPOUT),
+                    nn.LeakyReLU(0.1),
+                    nn.Conv1d(128, LATENT_DIM, kernel_size = 3, padding = 'same'),
+                    nn.Dropout(DROPOUT)
+                )
+                decoder = torch.nn.Sequential(
+                    nn.Conv1d(LATENT_DIM, 128, kernel_size = 3, padding = 'same'),
+                    nn.Dropout(DROPOUT),
+                    nn.LeakyReLU(0.1),
+                    nn.Conv1d(128, N_DATA, kernel_size = 3, padding = 'same'),
+                    nn.Dropout(DROPOUT),
+                    nn.LeakyReLU(0.1)
+                )
+                
+                Phi = AutoEncoder(encoder, decoder)
+            #end
             
-            Phi = AutoEncoder(encoder, decoder)
-            
+            if TASK == 'reco':
+                Phi = AutoEncoder_regression(N_DATA, LATENT_DIM)                
+            elif TASK == 'class':
+                Phi = AutoEncoder_classification(N_DATA, LATENT_DIM, N_SITU)
+            #end
+                        
         elif PRIOR == 'CN':
             
             Phi = ConvNet(
@@ -703,6 +811,12 @@ for run in range(RUNS):
         
         u_data = lit_model.samples_to_save[0]['u_data'].cpu().detach().numpy()
         u_reco = lit_model.samples_to_save[0]['u_reco'].cpu().detach().numpy()
+        
+        # if TASK == class:
+            # u_pred = torch.nn.functional.softmax(u_pred, dim = 2).bernoulli()
+            # calcola accuracy e accuracy per classe
+            # report : media accuracy, non RMSE e R²
+        
         
         pred_error_metric = NormLoss((u_data - u_reco), mask = None, divide = True, rmse = True)
         mask_central = torch.zeros((u_data.shape))

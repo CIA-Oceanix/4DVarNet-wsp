@@ -255,7 +255,7 @@ PATH_PLOTS     = os.path.join(os.getcwd(), 'plots')
 
 # FLOW CONTROL
 FIRST_PART     = False
-SECOND_PART    = False
+SECOND_PART    = True
 THIRD_PART     = True
 NORMALIZE      = True
 SAVE_DATA      = True
@@ -516,10 +516,6 @@ if THIRD_PART:
     # Test and validation set on the other hand should be processed
     # according to the sliding window format, in such a way to have
     # a contiguous collection of series of length T slided of 1 hour each
-    # UPAdata_test  = list(UPAdata_test.reshape(-1, TIME_FORMAT, UPA_shape))
-    # WINDdata_test = list(WINDdata_test.reshape(-1, TIME_FORMAT, 1))
-    # UPAdata_val   = list(UPAdata_val.reshape(-1, TIME_FORMAT, UPA_shape))
-    # WINDdata_val  = list(WINDdata_val.reshape(-1, TIME_FORMAT, 1))
     UPA_test, WIND_situ_test, WIND_ecmwf_test \
         = obtain_sliding_window_set(UPA_test, WIND_situ_test, WIND_ecmwf_test)
     UPA_val, WIND_situ_val, WIND_ecmwf_val \

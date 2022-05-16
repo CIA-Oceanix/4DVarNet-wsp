@@ -445,6 +445,57 @@ class L2NormLoss(nn.Module):
 #end
 
 
+def CrossEntropyLoss(label, guess, mask = None, dformat = 'mtn', divide = True):
+    
+    if mask is None:
+        mask = torch.ones_like(label)
+    #end
+    
+    if dformat == 'mtn':
+        softmax_dim = 2
+    elif dformat == 'mnt':
+        softmax_dim = 1
+    #end
+    
+    guess = torch.nn.functional.log_softmax(guess, dim = softmax_dim)
+    
+    # LOOP ON TIMESTEPS ???
+    negative_loglikelihood = -(label * guess)
+    argument = (negative_loglikelihood.mul(mask)).pow(2)
+    
+    # FIRST SUMMATION : ON FEATURES !!!
+    if dformat == 'mtn':
+        loss = argument.sum(dim = -1)
+    elif dformat == 'mnt':
+        loss = argument.sum(dim = 1)
+    #end
+    
+    no_items = False
+    nitems = 1
+    
+    if mask.sum() == 0.:
+        no_items = True
+        nitems = 1.
+    else:
+        no_items = False
+        num_features = mask.shape[-1]
+        nitems = mask.sum() / num_features
+    #end
+    
+    loss = loss.sum(dim = 0).sum() # SUMMATION OVER BATCH FIRST AND OVER TIME THEN
+    
+    if divide:
+        loss = loss.div(nitems)
+    #end
+    
+    if no_items == True:
+        nitems = 0
+    #end
+    
+    return loss
+#end
+
+
 # VARIATIONAL COST (DATA ASSIMILATION) ----------------------------------------
 
 def VariationalCost(x, y, mask_y, dynamical_prior, weight_data = 1, weight_regularization = 1):

@@ -5,7 +5,9 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BEAUFORT_CLASSES_THRESHOLD = [0, 0.5, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7]
 
 
 class MMData(Dataset):
@@ -114,19 +116,25 @@ class MMData(Dataset):
 
 class SMData(Dataset):
     
-    def __init__(self, path_data, wind_values, data_title,
+    def __init__(self, path_data, wind_values, data_title, 
+                 task = 'reco',
                  dtype = torch.float32,
-                 convert_to_tensor = True):
+                 convert_to_tensor = True,
+                 normalize = True):
         
         UPA        = pickle.load( open(os.path.join(path_data, f'UPA_{data_title}.pkl'), 'rb') )
         WIND_situ  = pickle.load( open(os.path.join(path_data, f'WIND_label_SITU_{data_title}.pkl'), 'rb') )
         WIND_ecmwf = pickle.load( open(os.path.join(path_data, f'WIND_label_ECMWF_{data_title}.pkl'), 'rb') )
         
-        self.UPA = UPA['data']
-        self.WIND_situ = WIND_situ['data']
-        self.WIND_ecmwf = WIND_ecmwf['data']
+        self.UPA        = np.array( UPA['data'] )
+        self.WIND_situ  = np.array( WIND_situ['data'] )
+        self.WIND_ecmwf = np.array( WIND_ecmwf['data'] )
+        # self.UPA        = UPA['data']
+        # self.WIND_situ  = WIND_situ['data']
+        # self.WIND_ecmwf = WIND_ecmwf['data']
         
         self.which_wind = WIND_situ['which']
+        self.task = task
         
         self.preprocess_params = {
                 'upa' : UPA['nparms'],
@@ -138,6 +146,8 @@ class SMData(Dataset):
         self.dtype    = dtype
         
         if convert_to_tensor: self.to_tensor()
+        
+        if task == 'class': self.to_onehot()
     #end
     
     def __len__(self):
@@ -152,9 +162,15 @@ class SMData(Dataset):
     
     def get_modality_data_size(self, data = None, asdict = False):
         
+        if self.task == 'reco':
+            N_situ = np.int32(1)
+        elif self.task == 'class':
+            N_situ = np.int32(3)
+        #end
+        
         N = {
             'upa' : np.int32(self.UPA[0].shape[1]),
-            'wind_situ' : np.int32(1),
+            'wind_situ' : N_situ,
             'wind_ecmwf' : np.int32(1),
         }
         
@@ -171,13 +187,33 @@ class SMData(Dataset):
     
     def to_tensor(self):
         
-        for i in range(self.nsamples):
+        # for i in range(self.nsamples):
             
-            self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
-            self.WIND_situ[i] = torch.Tensor(self.WIND_situ[i]).type(self.dtype)
-            self.WIND_ecmwf[i] = torch.Tensor(self.WIND_ecmwf[i]).type(self.dtype)
-        #end
+        #     self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
+        #     self.WIND_situ[i] = torch.Tensor(self.WIND_situ[i]).type(self.dtype)
+        #     self.WIND_ecmwf[i] = torch.Tensor(self.WIND_ecmwf[i]).type(self.dtype)
+        # #end
+        
+        self.UPA = torch.Tensor(self.UPA).type(self.dtype).to(device)
+        self.WIND_ecmwf = torch.Tensor(self.WIND_ecmwf).type(self.dtype).to(device)
+        self.WIND_situ = torch.Tensor(self.WIND_situ).type(self.dtype).to(device)
     #end
+    
+    def to_onehot(self):
+        
+        ws = self.WIND_situ
+        ws = self.undo_preprocess(ws, 'wind_situ')
+        class_ws = torch.zeros_like(ws)
+        
+        class_ws[ ws <= BEAUFORT_CLASSES_THRESHOLD[2] ] = 0
+        class_ws[ (ws > BEAUFORT_CLASSES_THRESHOLD[2]) & \
+                 (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
+        class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
+        
+        class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) )
+        
+        self.WIND_situ = class_ws
+    #end        
     
     def undo_preprocess(self, data_preprocessed, tag):
         
@@ -202,7 +238,7 @@ class TISMData(Dataset):
         self.preprocess_params = {
                 'y' : UPA['nparms'],
                 'u' : WIND['nparms']
-            }
+        }
         
         assert self.Y.__len__() == self.U.__len__()
         
