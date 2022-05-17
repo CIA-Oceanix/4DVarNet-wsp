@@ -210,9 +210,14 @@ class SMData(Dataset):
                  (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
         class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
         
+        print()
+        print('**************************************************')
+        print()
+        print(device)
         class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) ).to(device)
         
         self.WIND_situ = class_ws
+        print(self.WIND_situ.device)
     #end        
     
     def undo_preprocess(self, data_preprocessed, tag):
