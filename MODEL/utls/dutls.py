@@ -157,6 +157,9 @@ class SMData(Dataset):
     
     def __getitem__(self, idx):
         
+        print()
+        print('************************************')
+        print(self.UPA.device, self.WIND_ecmwf.device, self.WIND_situ.device)
         return self.UPA[idx], self.WIND_ecmwf[idx], self.WIND_situ[idx]
     #end
     
