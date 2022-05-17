@@ -599,7 +599,7 @@ else:
 #end
 
 if TASK == 'reco':
-    MODEL_NAME = f'{MODEL_NAME}_reco'
+    MODEL_NAME = f'{MODEL_NAME}'
 elif TASK == 'class':
     MODEL_NAME = f'{MODEL_NAME}_class'
 #end
