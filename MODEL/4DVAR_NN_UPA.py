@@ -691,13 +691,13 @@ for run in range(RUNS):
     print(f'Run {run}\n')
     
     train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011', TASK)
-    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = NUM_WORKERS)
+    train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True)#, num_workers = NUM_WORKERS)
     
     val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011', TASK)
-    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = NUM_WORKERS)
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False)#, num_workers = NUM_WORKERS)
     
     test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011', TASK)
-    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = NUM_WORKERS)
+    test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False)#, num_workers = NUM_WORKERS)
     
     N_UPA = train_set.get_modality_data_size('upa')
     N_ECMWF = train_set.get_modality_data_size('wind_ecmwf')
