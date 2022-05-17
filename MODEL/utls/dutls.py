@@ -157,9 +157,6 @@ class SMData(Dataset):
     
     def __getitem__(self, idx):
         
-        print()
-        print('************************************')
-        print(self.UPA.device, self.WIND_ecmwf.device, self.WIND_situ.device)
         return self.UPA[idx], self.WIND_ecmwf[idx], self.WIND_situ[idx]
     #end
     
@@ -206,22 +203,17 @@ class SMData(Dataset):
         
         ws = self.WIND_situ
         ws = self.undo_preprocess(ws, 'wind_situ')
-        class_ws = torch.zeros_like(ws)
+        class_ws = torch.zeros_like(ws).to(device)
         
         class_ws[ ws <= BEAUFORT_CLASSES_THRESHOLD[2] ] = 0
         class_ws[ (ws > BEAUFORT_CLASSES_THRESHOLD[2]) & \
                  (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
         class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
         
-        print()
-        print('**************************************************')
-        print()
-        print(device)
         class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) ).to(device)
         
         self.WIND_situ = class_ws
-        print(self.WIND_situ.device)
-    #end        
+    #end
     
     def undo_preprocess(self, data_preprocessed, tag):
         
