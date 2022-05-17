@@ -561,6 +561,7 @@ TEST_ECMWF  = CPARAMS['TEST_ECMWF']
 IS_TRAIN    = CPARAMS['IS_TRAIN']
 KSA_TRAIN   = CPARAMS['KSA_TRAIN']
 TASK        = CPARAMS['TASK']
+N_CLASSES   = CPARAMS['CLASSES']
 
 FIXED_POINT = CPARAMS['FIXED_POINT']
 LOAD_CKPT   = CPARAMS['LOAD_CKPT']
@@ -601,7 +602,7 @@ else:
 if TASK == 'reco':
     MODEL_NAME = f'{MODEL_NAME}'
 elif TASK == 'class':
-    MODEL_NAME = f'{MODEL_NAME}_class'
+    MODEL_NAME = f'{MODEL_NAME}_class{N_CLASSES}'
 #end
 
 if FIXED_POINT:
@@ -690,13 +691,13 @@ for run in range(RUNS):
     print('\n\n----------------------------------------------------------------------')
     print(f'Run {run}\n')
     
-    train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011', TASK)
+    train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011', TASK, N_CLASSES)
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True)#, num_workers = NUM_WORKERS)
     
-    val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011', TASK)
+    val_set = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011', TASK, N_CLASSES)
     val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False)#, num_workers = NUM_WORKERS)
     
-    test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011', TASK)
+    test_set = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011', TASK, N_CLASSES)
     test_loader = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False)#, num_workers = NUM_WORKERS)
     
     N_UPA = train_set.get_modality_data_size('upa')
@@ -878,8 +879,8 @@ if TASK == 'reco':
 elif TASK == 'class':
     ''' Unlike regression, where we compute the median, for classification
         we need to define how the RUNS models vote the suitable class '''
-    windspeed_accrs['classwise'] = np.array(classwise_accuracies).mean(axis = 0)
-    windspeed_accrs['total'] = np.array(total_accuracies).mean()
+    windspeed_accrs['classwise'] = np.array(classwise_accuracies)
+    windspeed_accrs['total'] = np.array(total_accuracies)
     
     # models vote for most likely classes
     wdata = np.argmax(np.array( u_data ), axis = 2).flatten()
@@ -947,9 +948,9 @@ elif TASK == 'class':
         pickle.dump(windspeed_accrs, filename)
     filename.close()
     
-    ''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
-    with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
-        filename.write('Mean accuracy      ; {:.4f}\n'.format(windspeed_accrs['total']))
-        filename.write('Median             ; {:.4f}\n'.format(windspeed_baggr))
-    filename.close()
+    # ''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
+    # with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
+    #     filename.write('Mean accuracy      ; {:.4f}\n'.format(windspeed_accrs['total']))
+    #     filename.write('Median             ; {:.4f}\n'.format(windspeed_baggr))
+    # filename.close()
 #end

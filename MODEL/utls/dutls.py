@@ -118,6 +118,7 @@ class SMData(Dataset):
     
     def __init__(self, path_data, wind_values, data_title, 
                  task = 'reco',
+                 nclasses = None,
                  dtype = torch.float32,
                  convert_to_tensor = True,
                  normalize = True):
@@ -135,6 +136,7 @@ class SMData(Dataset):
         
         self.which_wind = WIND_situ['which']
         self.task = task
+        if nclasses is not None: self.nclasses = nclasses
         
         self.preprocess_params = {
                 'upa' : UPA['nparms'],
@@ -146,7 +148,6 @@ class SMData(Dataset):
         self.dtype    = dtype
         
         if convert_to_tensor: self.to_tensor()
-        
         if task == 'class': self.to_onehot()
     #end
     
@@ -165,7 +166,7 @@ class SMData(Dataset):
         if self.task == 'reco':
             N_situ = np.int32(1)
         elif self.task == 'class':
-            N_situ = np.int32(3)
+            N_situ = np.int32(self.nclasses)
         #end
         
         N = {
@@ -205,10 +206,13 @@ class SMData(Dataset):
         ws = self.undo_preprocess(ws, 'wind_situ')
         class_ws = torch.zeros_like(ws).to(device)
         
-        class_ws[ ws <= BEAUFORT_CLASSES_THRESHOLD[2] ] = 0
-        class_ws[ (ws > BEAUFORT_CLASSES_THRESHOLD[2]) & \
-                 (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
-        class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
+        if self.nclasses == 3:
+            
+            class_ws[ ws <= BEAUFORT_CLASSES_THRESHOLD[2] ] = 0
+            class_ws[ (ws > BEAUFORT_CLASSES_THRESHOLD[2]) & \
+                     (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
+            class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
+        #end
         
         class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) ).to(device)
         
