@@ -843,6 +843,9 @@ for run in range(RUNS):
             total_accuracy = (u_data_cat == u_pred_cat).sum() / u_data_cat.shape[0]
             total_accuracies.append(total_accuracy)
             
+            print(f'Total accuracy     = {total_accuracy:.4f}')
+            print('Classwise accuracy = ', classwise_accuracy)
+            
             # gather predictions
             predictions.append(u_pred)
             
@@ -873,7 +876,8 @@ if TASK == 'reco':
     windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
 
 elif TASK == 'class':
-    
+    ''' Unlike regression, where we compute the median, for classification
+        we need to define how the RUNS models vote the suitable class '''
     windspeed_accrs['classwise'] = np.array(classwise_accuracies).mean(axis = 0)
     windspeed_accrs['total'] = np.array(total_accuracies).mean()
     
@@ -907,7 +911,10 @@ filename.close()
 
 ''' SERIALIZE WIND SPEED VALUES '''
 with open(os.path.join(PATH_MODEL, 'wind_data_medianreco.pkl'), 'wb') as filename:
-    pickle.dump({'u_data' : wdata, 'u_pred' : preds}, filename)
+    pickle.dump({'u_data'          : wdata, 
+                 'u_pred'          : preds, 
+                 'u_pred_ensemble' : predictions}, 
+                filename)
 filename.close()
 
 ''' SERIALIZE TRAINING METRICS '''
