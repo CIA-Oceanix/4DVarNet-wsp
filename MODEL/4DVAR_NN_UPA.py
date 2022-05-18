@@ -277,6 +277,10 @@ class LitModel(pl.LightningModule):
         takes charge of doing the Beaufort class quantization and the
         one-hot encoding of real wind speed values
         '''
+        
+        if phase == 'test':
+            print()
+        
         batch_size = batch[0].shape[0]
         data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA).clone()
         data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF).clone()

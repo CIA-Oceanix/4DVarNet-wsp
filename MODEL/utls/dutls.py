@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BEAUFORT_CLASSES_THRESHOLD = [0, 0.5, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7]
+BSCALE = [0, 0.5, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7]
 
 
 class MMData(Dataset):
@@ -208,13 +208,43 @@ class SMData(Dataset):
         
         if self.nclasses == 3:
             
-            class_ws[ ws <= BEAUFORT_CLASSES_THRESHOLD[2] ] = 0
-            class_ws[ (ws > BEAUFORT_CLASSES_THRESHOLD[2]) & \
-                     (ws <= BEAUFORT_CLASSES_THRESHOLD[5]) ] = 1
-            class_ws[ ws > BEAUFORT_CLASSES_THRESHOLD[5] ] = 2
+            '''
+            3 CLASSES :
+                0 : No wind [0, 1, 2]
+                1 : Mild wind [3, 4, 5]
+                2 : Strong wind [6, ...]
+            
+            5 CLASSES :
+                0 : Calm wind, light air [0, 1]
+                1 : Light to gentle breeze [2, 3]
+                2 : Moderate to fresh breeze [4, 5]
+                3 : Strong breeze, moderate gale [6, 7]
+                4 : Gale, severe gale [8, 9]
+                5 : Storm, violent storm, hurricane [10, ...]
+            '''
+            
+            class_ws[ ws <= BSCALE[2] ] = 0
+            class_ws[ (ws > BSCALE[2]) & (ws <= BSCALE[5]) ] = 1
+            class_ws[ ws > BSCALE[5] ] = 2
+        
+        elif self.nclasses == 5:
+            
+            class_ws[ ws <= BSCALE[1] ] = 0
+            class_ws[ (ws > BSCALE[1]) & (ws <= BSCALE[3]) ] = 1
+            class_ws[ (ws > BSCALE[3]) & (ws <= BSCALE[5]) ] = 2
+            class_ws[ (ws > BSCALE[5]) & (ws <= BSCALE[7]) ] = 3
+            class_ws[ ws > BSCALE[7] ] = 4
         #end
         
         class_ws = torch.nn.functional.one_hot( class_ws.type(torch.LongTensor) ).to(device)
+        
+        if class_ws.shape[-1] < self.nclasses:
+            ''' If no wind is available for class 4 '''
+            
+            batch_size = class_ws.shape[0]
+            time_format = class_ws.shape[1]
+            class_ws = torch.cat( (class_ws, torch.zeros(batch_size, time_format, 1)), dim = 2 )
+        #end
         
         self.WIND_situ = class_ws
     #end
