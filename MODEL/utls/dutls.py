@@ -244,6 +244,7 @@ class SMData(Dataset):
             batch_size = class_ws.shape[0]
             time_format = class_ws.shape[1]
             class_ws = torch.cat( (class_ws, torch.zeros(batch_size, time_format, 1)), dim = 2 )
+            class_ws.to(device)
         #end
         
         self.WIND_situ = class_ws
