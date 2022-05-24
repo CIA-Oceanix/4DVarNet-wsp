@@ -1,6 +1,4 @@
 
-# CHECKPOINT
-
 print('\n\n')
 print('###############################################')
 print('                4DVAR SM TD UPA                ')
@@ -49,8 +47,26 @@ else:
 
 
 class AutoEncoder(nn.Module):
+    '''
+    Generic auto-encoder
+    '''
     
-    def __init__(self, encoder, decoder, ):
+    def __init__(self, encoder, decoder):
+        '''
+        Initialization
+
+        Parameters
+        ----------
+        encoder : ``torch.nn.Sequential``
+            The encoder architecture
+        decoder : ``torch.Decoder``
+            The decoder architecture
+
+        Returns
+        -------
+        None.
+
+        '''
         
         super(AutoEncoder, self).__init__()
         
@@ -68,26 +84,50 @@ class AutoEncoder(nn.Module):
 #end
 
 class AutoEncoder_regression(nn.Module):
+    '''
+    Auto-encoder for regression.
+    Given a data structure as input, the model performs a reconstruction of 
+    these data. The output data are homogeneous (real nmbers) so we need only
+    one decoder.
+    '''
     
     def __init__(self, N_data, latent_dim):
+        '''
+        Initialization.
+        Definition of the computational cascade of both
+        the encoder and the decoder. 
+        
+        Parameters
+        ----------
+        N_data : ``int``
+            Input data dimension
+        latent_dim : ``int``
+            Latent space dimension
+        
+        Returns
+        -------
+        None.
+        
+        '''
         super(AutoEncoder_regression, self).__init__()
         
-        self.econv1 = nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same')
-        self.enl1   = nn.LeakyReLU(0.1)
-        self.econv2 = nn.Conv1d(128, latent_dim, kernel_size = 3, padding = 'same')
+        self.encoder_conv1 = nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same')
+        self.encoder_nlin1 = nn.LeakyReLU(0.1)
+        self.encoder_conv2 = nn.Conv1d(128, latent_dim, kernel_size = 3, padding = 'same')
         
-        self.dconv1 = nn.Conv1d(latent_dim, 128, kernel_size = 3, padding = 'same')
-        self.dnl1   = nn.LeakyReLU(0.1)
-        self.dconv2 = nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same')
-        self.dnl2   = nn.LeakyReLU(0.1)
+        self.decoder_conv1 = nn.Conv1d(latent_dim, 128, kernel_size = 3, padding = 'same')
+        self.decoder_nlin1 = nn.LeakyReLU(0.1)
+        self.decoder_conv2 = nn.Conv1d(128, N_data, kernel_size = 3, padding = 'same')
+        self.decoder_nlin2 = nn.LeakyReLU(0.1)
     #end
     
     def forward(self, data):
         
-        h = self.enl1( self.econv1(data) )
-        h = self.econv2(h)
-        h = self.dnl1( self.dconv1(h) )
-        out = self.dnl2( self.dconv2(h) )
+        hidden_encoder = self.encoder_nlin1( self.encoder_conv1(data) )
+        latent = self.encoder_conv2(hidden_encoder)
+        
+        hidden_decoder = self.decoder_nlin1( self.decoder_conv1(latent) )
+        out = self.decoder_nlin2( self.decoder_conv2(hidden_decoder) )
         
         return out
     #end
@@ -95,30 +135,62 @@ class AutoEncoder_regression(nn.Module):
 
 
 class AutoEncoder_classification(nn.Module):
+    '''
+    UNDER MAINTAINANCE
+    
+    Auto-encoder for classification.
+    Given a data structure as input, the model performs a reconstruction of 
+    these data but since the desired predictive description of wind speed
+    we want is categorical, the decoder is split in two braches: one for the 
+    reconstruction of real-valued and the other for the categorical values of
+    wind speed.
+    Note that there are no two different decoders, but the decoder has two 
+    distrinct output layers to differentiate data types. This could be
+    tuned and modified in different versions.
+    '''
     
     def __init__(self, N_data, latent_dim, N_situ):
+        '''
+        Initialization.
+        Definition of the computational cascade of encoder and decoder.
+
+        Parameters
+        ----------
+        N_data : ``int``
+            Dimension of the input data
+        latent_dim : ``int``
+            Dimension of the latent space
+        N_situ : ``int``
+            Number of categories of the wind speed values
+
+        Returns
+        -------
+        None.
+
+        '''
+        
         super(AutoEncoder_classification, self).__init__()
         
-        self.econv1 = nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same')
-        self.enl1   = nn.LeakyReLU(0.1)
-        self.econv2 = nn.Conv1d(128, latent_dim, kernel_size = 3, padding = 'same')
+        self.encoder_conv1 = nn.Conv1d(N_data, 128, kernel_size = 3, padding = 'same')
+        self.encoder_nlin1 = nn.LeakyReLU(0.1)
+        self.encoder_conv2 = nn.Conv1d(128, latent_dim, kernel_size = 3, padding = 'same')
         
-        self.dconv1      = nn.Conv1d(latent_dim, 128, kernel_size = 3, padding = 'same')
-        self.dnl1        = nn.LeakyReLU(0.1)
-        self.dconv2_data = nn.Conv1d(128, N_data - N_situ, kernel_size = 3, padding = 'same')
-        self.dnl2_data   = nn.LeakyReLU(0.1)
-        self.dconv2_ws   = nn.Conv1d(128, N_situ, kernel_size = 3, padding = 'same')
-        self.dnl2_ws     = nn.LogSoftmax(dim = 2)
+        self.decoder_conv1 = nn.Conv1d(latent_dim, 128, kernel_size = 3, padding = 'same')
+        self.decoder_nlin1 = nn.LeakyReLU(0.1)
+        self.decoder_conv2_upa = nn.Conv1d(128, N_data - N_situ, kernel_size = 3, padding = 'same')
+        self.decoder_nlin2_upa = nn.LeakyReLU(0.1)
+        self.decoder_conv2_wind = nn.Conv1d(128, N_situ, kernel_size = 3, padding = 'same')
+        self.decoder_nlin2_wind = nn.LogSoftmax(dim = 2)
     #end
     
     def forward(self, data):
         
-        h = self.enl1( self.econv1(data) )
-        h = self.econv2(h)
-        h = self.dnl1( self.dconv1(h) )
-        reco_data = self.dnl2_data( self.dconv2_data(h) )
-        reco_ws = self.dconv2_ws(h)
-        # reco_ws = self.dnl2_ws(reco_ws)
+        hidden_encoder = self.encoder_nlin1( self.encoder_conv1(data) )
+        latent = self.encoder_conv2(hidden_encoder)
+        
+        hidden_decoder = self.decoder_nlin1( self.decoder_conv1(latent) )
+        reco_data = self.decoder_nlin2_upa( self.decoder_conv2_upa(hidden_decoder) )
+        reco_ws = self.decoder_conv2_wind(hidden_decoder)
         
         out = torch.cat((reco_data, reco_ws), dim = 1)
         return out
@@ -126,22 +198,25 @@ class AutoEncoder_classification(nn.Module):
 #end
 
 
-
-class UNet(nn.Module):
-    
-    def __init__(self):
-        pass
-    #end
-    
-    def forward(self):
-        pass
-    #end
-#end
-
-
 class ConvNet(nn.Module):
+    '''
+    Prototype for a convolutional network
+    '''
     
     def __init__(self, net):
+        '''
+        Initialization.
+        
+        Parameters
+        ----------
+        net : ``torch.Sequential``
+            The network architecture
+
+        Returns
+        -------
+        None.
+        
+        '''
         
         super(ConvNet, self).__init__()
         
@@ -158,8 +233,26 @@ class ConvNet(nn.Module):
 
 
 class Model_H(torch.nn.Module):
+    '''
+    Observation operator
+    '''
     
     def __init__(self, shape_data, dim = 1):
+        r'''
+        Initialization.
+        
+        Parameters
+        ----------
+        shape_data : ``tuple`` or ``list``
+            The data shape, in form :math:`(\mathrm{Num\_channels} \times \mathrm{Num\_features})`
+        dim : ``int``
+            Dimension of the data itself. Defaults to 1, that is for one-dimensional data
+            (eg uni- or multi-variate time series, NOT images)
+            
+        Returns
+        -------
+        None.
+        '''
         
         super(Model_H, self).__init__()
         self.dim_obs = 1
@@ -167,6 +260,19 @@ class Model_H(torch.nn.Module):
     #end
     
     def forward(self, x, y, mask):
+        r'''
+        Note that this simple observation operator (NON-TRAINABLE) only
+        takes as input the observations :math:`y` and the state variable
+        :math:`x` and puts a binary mask to occlude some portions of the
+        observations. In this case, there where there are missing values.
+        
+        This encodes the term
+        
+        .. math::
+            \mathrm{Data\_fidelity} = \| x - y \|^{2}_{\Omega}
+        
+        of the variational cost.
+        '''
         
         dyout = (x - y).mul(mask)
         return dyout
@@ -175,11 +281,49 @@ class Model_H(torch.nn.Module):
 
 
 class LitModel(pl.LightningModule):
+    r'''
+    Pytorch-lightning module. This is the heart of the experiment itself.
+    Contains the computational cascade, the relevant models initializations,
+    is a container of the workflow constants and processes the output data.
+    
+    In this container two main pieces are worth mentioning:
+        1. The dynamical prior :math:`\Phi`. It is a NN-parametrized 
+           operator that is delegated with the physical representation
+           of the system's dynamics. Referring to the manuscript and
+           in particular to the continuous state-space model, this
+           operator is nothing but the right-hand side of the dynamical
+           equation. Its parameters are saved in the global lightning 
+           model and updated according to the chosen optimizer.
+        2. The ``model`` field. Again referring to the manuscript, this
+           is again a NN-parametrized model that takes charge of the
+           optimization problem to find the optimal state variable. 
+           Under the hood, it implements a gradient descent using the 
+           Pytorch automatic differentiation tools. See the ``./4dvar/solver.py``
+           module where the explicit computations are stated.
+    '''
     
     def __init__(self, Phi, shapeData, preprocess_params):
+        '''
+        Initialization.
+        
+        Parameters
+        ----------
+        Phi : ``torch.nn.Module``
+            The physical prior. It is the operator that maps the input data
+            to the reconstructions that encodes the action of the flow 
+            operator :math:`\Phi : x \rightarrow x`
+        shapeData : ``tuple``
+            The data shape in the form :math:`(\mathrm{batch_size} \times \mathrm{time_series_length} \times \mathrm{num_channels})`.
+            Note that here we refer to :math:`num_channels` as the number of features
+        preprocess_params : ``dict``
+            Contains the indicized-by-data minima and maxima. Used to denormalize 
+            the outputs and thus produce physically-sound quantities as results and
+            error metrics
+        '''
         
         super(LitModel, self).__init__()
         
+        ''' Set the relevant properties '''
         self.Phi = Phi
         self.hparams.dim_grad_solver = DIM_LSTM
         self.hparams.dropout = DROPOUT
@@ -192,12 +336,17 @@ class LitModel(pl.LightningModule):
         self.train_losses = np.zeros(EPOCHS)
         self.val_losses = np.zeros(EPOCHS)
         
+        ''' Refer to the manuscript. Depending on whether one goes by the 
+        single-modal or multi-modal approach, the data must be processed
+        accordingly '''
         if MM_ECMWF:
             mod_shape_data = [N_UPA + N_ECMWF + N_SITU, FORMAT_SIZE]
         else:
             mod_shape_data = [N_UPA + N_SITU, FORMAT_SIZE]
         #end
         
+        ''' Model refers to the 4DVarNet gradient solver to find the optimal
+        state variable. Initialization with the relevant properties '''
         self.model = NN_4DVar.Solver_Grad_4DVarNN(  # Instantiation of the LSTM solver
             
             Phi,                              # Dynamical prior   
@@ -217,7 +366,35 @@ class LitModel(pl.LightningModule):
     #end
     
     def forward(self, input_data, iterations = None, phase = 'train'):
+        '''
+        Computations.
         
+        Parameters
+        ----------
+        input_data : ``torch.Tensor``
+            input data
+        iterations : ``int``. Defaults to ``None``.
+            How many times to repeat the optimization for the state variable.
+            If ``iterations >= 1`` then the optimal state variable is used as
+            initialization for a ``iterations``-th block of iterations.
+        phase : ``str`` among ``train``, ``val`` and ``test``. Defaults to ``train``.
+            Depending on whether we train, validate or test, we may want different
+            behaviours. For example, whether to denormalize and/or save the 
+            output reconstructions.
+            
+        Returns
+        -------
+        loss : ``torch.Tensor``
+            Loss value. NOT variational cost, but reconstruction and/or classification
+            loss. To be used for monitoring or reporting purposes.
+        outs : ``torch.Tensor``
+            Reconstructions of data and ground-truths or reconstructions of data
+            and guessees of ground-truth labels
+            
+        '''
+        
+        ''' Even if we want to do mulitple blocks of gradient solver iterations,
+            set the initial state to None'''
         state_init = None
         
         for i in range(self.hparams.n_fourdvar_iter):
@@ -243,11 +420,35 @@ class LitModel(pl.LightningModule):
     #end
     
     def get_init_state(self, batch, state):
+        '''
+        To initialize the state variable. If it is the first block of
+        gradient iterations, then state == None, then we initialize the
+        state as observations.
+        
+        NOTE IMPORTANT : The 4DVarNet must have NO ACCESS at the true wind
+        labels, except for the evaluation of the reconstruction loss. In 
+        the optimization procedure, the wind speed values are generated. 
+        For this reason, the initial state variable is a concatenation of 
+        UPA observed values and a wind-shaped tensor of ZEROS!!!
+        '''
         
         if state is not None:
             return state
         #end
         
+        ''' IMPORTANT NOTE 2 : The time series are idealized as data structures
+        containing real-valued data and having shape
+                               
+            ( BATCH_SIZE, TIME_SERIES_LENGTH, NUM_FEATURES )
+                               
+        Then, for them to be properly processed by our convolutional model,
+        we want them to take the format
+        
+            ( BATCH_SIZE, NUM_FEATURES, TIME_SERIES_LENGTH )
+            
+        The "channels" are the features and the length is the length of the time
+        series. Refer to the documentation of Pytorch for the class ``torch.nn.Conv1d``
+        '''
         batch_size = batch[0].shape[0]
         data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA).clone()
         data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF).clone()
@@ -271,16 +472,11 @@ class LitModel(pl.LightningModule):
     
     def compute_loss(self, batch, phase = 'train', state_init = None):
         
-        '''Reshape the input data'''
-        '''
+        '''Reshape the input data, see above.
         NOTE : If the task is classification, the dutls.SMData class 
         takes charge of doing the Beaufort class quantization and the
         one-hot encoding of real wind speed values
-        '''
-        
-        if phase == 'test':
-            print()
-        
+        '''        
         batch_size = batch[0].shape[0]
         data_UPA   = batch[0].reshape(batch_size, FORMAT_SIZE, N_UPA).clone()
         data_we    = batch[1].reshape(batch_size, FORMAT_SIZE, N_ECMWF).clone()
@@ -294,13 +490,19 @@ class LitModel(pl.LightningModule):
         if phase == 'test' and TEST_ECMWF is not None:
             ''' If MM_ECMWF is true but TEST_ECMWF is false,
                 then the mulit-modal model is used, with no
-                modification to ECMWF wind speed '''
+                modification to ECMWF wind speed.
+                This modification is done to evaluate the 
+                performace degradation in case of loss of info
+                in the ECMWF data corpora, namely all zeroes or
+                daily means '''
             
             if TEST_ECMWF == 'zero':
+                ''' Set ECMWF wind to zero '''
                 print("zero")
                 data_we = torch.zeros_like(data_we)
                 
             elif TEST_ECMWF == 'dmean':
+                ''' Set ECMWF wind to daily means '''
                 print("dmean")
                 mean_we = torch.zeros_like(data_we)
                 for i in range(data_we.shape[0]):
@@ -326,7 +528,12 @@ class LitModel(pl.LightningModule):
         mask_ws[data_ws == 0] = 0
         data_ws[data_ws.isnan()] = 0.
         
-        ''' Missing data : produce random masks '''
+        ''' ROBUSTNESS TEST 1 : MISSING DATA
+            If we want to see how 4DVarNet is robust with respect to
+            missing data, then we can enforce it by arbitrarily eliminating
+            some time steps. This acts as regularizer, in the same spirit
+            of the dropout, for small missing data percentage, eg up to 10%.
+        '''
         if IS_TRAIN is not None:
             
             for i in range(batch_size):
@@ -341,7 +548,12 @@ class LitModel(pl.LightningModule):
             #end
         #end
         
-        ''' k-steps-ahead prediction : produce proper masks '''
+        ''' ROBUSTNESS TEST 2 : k-STEPS-AHEAD FORECAST
+            We may want to use 4DVarNet to produce ahead-in-time forecast,
+            based on data collected up to the present instant.
+            We then produce a mask that deletes only the second part of the
+            fixed time series, eg 12 hours.
+        '''
         if KSA_TRAIN is not None:
             
             mask_UPA[:, :, np.int32(KSA_TRAIN):] = 0.
@@ -360,6 +572,8 @@ class LitModel(pl.LightningModule):
         
         inputs_init = self.get_init_state(batch, state_init)
         
+        ''' IMPORTANT NOTE 3 : MULTIPLY BY THE MASK IN SUCH A WAY TO MAKE SURE THAT
+            4DVARNET DOES NOT SEE TRUE WIND SPEED VALUES '''
         if not MM_ECMWF:
             inputs_init = inputs_init * torch.cat( (mask_UPA, 
                                                     torch.ones_like(data_ws)), 
@@ -375,6 +589,9 @@ class LitModel(pl.LightningModule):
             
             inputs_init = torch.autograd.Variable(inputs_init, requires_grad = True)
             
+            ''' NOTE : the FIXED POINT version is a direct model that reconstruct
+                the data, with no Variational Data Assimilation modelling.
+                This equals using only the Phi operator '''
             if FIXED_POINT:
                 outputs = self.Phi(data_input)
             else:
@@ -671,9 +888,8 @@ print('----------------------------------------------------------------------')
 Initialize the performance metrics data structures
 '''
 windspeed_rmses = {
-    'only_SAR'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
-    'only_UPA'  : {'u' : np.zeros(RUNS), 'u_c' : np.zeros(RUNS)},
-    'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
+    'u'   : np.zeros(RUNS),
+    'u_c' : np.zeros(RUNS),    
 }
 windspeed_accrs = {
     'classwise' : 0.,
@@ -687,7 +903,6 @@ performance_metrics = {
 }
 classwise_accuracies = list()
 total_accuracies = list()
-
 u_datas = list()
 
 
@@ -719,8 +934,12 @@ for run in range(RUNS):
             N_DATA = N_UPA + N_SITU
         #end
         
+        ''' The physical prior can be an auto-encoder, convnet, unet, ... '''
         if PRIOR == 'AE':
             
+            ''' For the case reconstruction, we can build the auto-encoder
+                with torch.nn.Sequential modules. For flexibility in developement
+                better to construct explicit models as stated in the beginning '''
             if 1 == 0:
                 encoder = torch.nn.Sequential(
                     nn.Conv1d(N_DATA, 128, kernel_size = 3, padding = 'same'),
@@ -770,6 +989,34 @@ for run in range(RUNS):
                               preprocess_params = test_set.preprocess_params
         )
         
+        ''' IMPORTANT NOTE n : To improve the training of 4DVarNet, we
+            do the following :
+            
+                1. Train a 4DVarNet model with 5 gradient iterations
+                (it is a meta-parameter that can be set in the configuration file)
+                
+                2. Save the best model according to validation loss during 
+                training. It is not necessary true that the best model is the
+                one at the end of training, ie at the last epoch. Rather 
+                it is seldom the case.
+                
+                3. Assess the performance of this model.
+                
+                4. Initialize a new 4DVarNet using the weights of the saved one
+                then train this new model for 10 gradient iterations.
+                
+                5. Assess performance.
+        
+        The evaluation in 5. should be at least as good as the one gauged in 3.
+        Refer to the manuscript, this is true.
+        In the following, the LOAD_CKPT flag is set to true if we want to perform 
+        the steps 4. and 5. because in practice we have to launch two training 
+        procedures by running the same code twice and changing the workflow flags.
+        
+        Note further that each model (5 gradient iterations or 10) has a dedicated
+        folder in ./models_hparams/ so the checkpoints (models saved based on the
+        validation loss) are uniques and uniquely associated to the model configuration.
+        '''
         if LOAD_CKPT:
             
             CKPT_NAME = glob.glob(os.path.join(PATH_SOURCE, f'{run}-' + MODEL_SOURCE + '-epoch=*.ckpt'))[0]
@@ -824,12 +1071,9 @@ for run in range(RUNS):
         u_reco = lit_model.samples_to_save[0]['u_reco'].cpu().detach().numpy()
         
         u_datas.append(u_data)
-                
+        
         if TASK == 'class':
-            
-            # u_pred = torch.nn.functional.softmax(u_pred, dim = 2).bernoulli()
-            # calcola accuracy e accuracy per classe
-            # report : media accuracy, non RMSE e R²
+            ''' CLASSIFICATION UNDER MAINTAINANCE '''
             
             u_pred = torch.nn.functional.softmax(torch.Tensor(u_reco), dim = 2).bernoulli()
             
@@ -951,10 +1195,4 @@ elif TASK == 'class':
     with open(os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}_wsm.pkl'), 'wb') as filename:
         pickle.dump(windspeed_accrs, filename)
     filename.close()
-    
-    # ''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
-    # with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
-    #     filename.write('Mean accuracy      ; {:.4f}\n'.format(windspeed_accrs['total']))
-    #     filename.write('Median             ; {:.4f}\n'.format(windspeed_baggr))
-    # filename.close()
 #end

@@ -11,6 +11,13 @@ BSCALE = [0, 0.5, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7]
 
 
 class MMData(Dataset):
+    '''
+    DEPRECATED
+    
+    Multi-modal data loader.
+    Except for the presence of SAR, the class has a very similar 
+    behaviour that ``SMData`` below.
+    '''
     
     def __init__(self, path_data, wind_values, data_title,
                  sar_values        = 'GMF',
@@ -26,34 +33,34 @@ class MMData(Dataset):
             - U == Wind speed values (ECMWF or INSITU)
         '''
         
-        # SAR_GMF    = pickle.load( open(os.path.join(path_data, 'SAR_GMF_{}_{}.pkl'.format(wind_values, data_title)), 'rb' ) )
-        # SAR_NRCS   = pickle.load( open(os.path.join(path_data, 'SAR_NRCS_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
-        # SAR_ECMWF  = pickle.load( open(os.path.join(path_data, 'SAR_ECMWF_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
+        SAR_GMF    = pickle.load( open(os.path.join(path_data, 'SAR_GMF_{}_{}.pkl'.format(wind_values, data_title)), 'rb' ) )
+        SAR_NRCS   = pickle.load( open(os.path.join(path_data, 'SAR_NRCS_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
+        SAR_ECMWF  = pickle.load( open(os.path.join(path_data, 'SAR_ECMWF_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
         UPA        = pickle.load( open(os.path.join(path_data, 'UPA_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
         WIND_label = pickle.load( open(os.path.join(path_data, 'WIND_label_{}_{}.pkl'.format(wind_values, data_title)), 'rb') )
         
-        # if sar_values == 'GMF':
-        #     SAR = SAR_GMF
-        # elif sar_values == 'NRCS':
-        #     SAR = SAR_NRCS
-        # #end
-        # self.X = SAR['data']
+        if sar_values == 'GMF':
+            SAR = SAR_GMF
+        elif sar_values == 'NRCS':
+            SAR = SAR_NRCS
+        #end
+        self.X = SAR['data']
         self.Y = UPA['data']
-        # self.W = SAR_ECMWF['data']
+        self.W = SAR_ECMWF['data']
         self.U = WIND_label['data']
         
         self.which_wind = WIND_label['which']
         
         self.preprocess_params = {
-                # 'x' : SAR['nparms'],
+                'x' : SAR['nparms'],
                 'y' : UPA['nparms'],
-                # 'w' : SAR_ECMWF['nparms'],
+                'w' : SAR_ECMWF['nparms'],
                 'u' : WIND_label['nparms']
             }
         
-        # assert self.X.__len__() == self.Y.__len__()
-        # assert self.X.__len__() == self.W.__len__()
-        # assert self.X.__len__() == self.U.__len__()
+        assert self.X.__len__() == self.Y.__len__()
+        assert self.X.__len__() == self.W.__len__()
+        assert self.X.__len__() == self.U.__len__()
         
         self.nsamples = self.Y.__len__()
         self.dtype    = dtype
@@ -69,16 +76,15 @@ class MMData(Dataset):
     
     def __getitem__(self, idx):
         
-        # return self.X[idx], self.Y[idx], self.W[idx], self.U[idx]
-        return self.Y[idx], self.Y[idx], self.U[idx], self.U[idx]
+        return self.X[idx], self.Y[idx], self.W[idx], self.U[idx]
     #end
     
     def get_modality_data_size(self, data = None, asdict = False):
         
         N = {
-            # 'x' : np.int32( np.prod(self.X[0].shape[-2:]) ),
+            'x' : np.int32( np.prod(self.X[0].shape[-2:]) ),
             'y' : np.int32(self.Y[0].shape[1]),
-            # 'w' : np.int32( np.prod(self.W[0].shape[-2:]) ),
+            'w' : np.int32( np.prod(self.W[0].shape[-2:]) ),
             'u' : np.int32(1)
         }
         
@@ -97,10 +103,10 @@ class MMData(Dataset):
         
         for i in range(self.nsamples):
             
-            # self.X[i]     = torch.Tensor(self.X[i]).type(self.dtype)
-            self.Y[i]     = torch.Tensor(self.Y[i]).type(self.dtype)
-            # self.W[i]     = torch.Tensor(self.W[i]).type(self.dtype)
-            self.U[i]     = torch.Tensor(self.U[i]).type(self.dtype)
+            self.X[i] = torch.Tensor(self.X[i]).type(self.dtype)
+            self.Y[i] = torch.Tensor(self.Y[i]).type(self.dtype)
+            self.W[i] = torch.Tensor(self.W[i]).type(self.dtype)
+            self.U[i] = torch.Tensor(self.U[i]).type(self.dtype)
         #end
     #end
     
@@ -115,6 +121,9 @@ class MMData(Dataset):
 
 
 class SMData(Dataset):
+    '''
+    Dataset class for the management of multi-modal data.
+    '''
     
     def __init__(self, path_data, wind_values, data_title, 
                  task = 'reco',
@@ -122,6 +131,34 @@ class SMData(Dataset):
                  dtype = torch.float32,
                  convert_to_tensor = True,
                  normalize = True):
+        '''
+        Initialization
+        
+        Parameters
+        ----------
+        path_data : ``str``
+            Where data are fetched from
+        wind_values : ``str`` DEPRECATED
+            Whether the ground-truth is in-situ or ECMWF wind
+        data_title : ``str``
+            The data time window chosen, among ``2011`` and ``2015``. 
+            Experiments performed on 2011
+        task : ``str``
+            Among ``'reco'`` and ``'class'``, the former to set the dataset 
+            as reconstruction dataset, ie the wind values are scalar, the latter
+            sets the dataset as for classification, ie the wind values are
+            categorical (integers). Defaults to ``'reco'``
+        nclasses : ``int``
+            How many categories for the classification task. As ``task`` defaults
+            to reconstruction, then ``nclasses`` defaults to ``None``
+        dtype : ``torch.float32`` or ``torch.float64``
+            Data type for the data to use in the torch model. Defaults to ``torch.float32``
+        convert_to_tensor : ``bool``
+            Whether convert to ``torch.Tensor``. Defaults to ``True``
+        normalize : ``bool``
+            Whether to normalize data. Defaults to ``True``
+        
+        '''
         
         UPA        = pickle.load( open(os.path.join(path_data, f'UPA_{data_title}.pkl'), 'rb') )
         WIND_situ  = pickle.load( open(os.path.join(path_data, f'WIND_label_SITU_{data_title}.pkl'), 'rb') )
@@ -130,9 +167,6 @@ class SMData(Dataset):
         self.UPA        = np.array( UPA['data'] )
         self.WIND_situ  = np.array( WIND_situ['data'] )
         self.WIND_ecmwf = np.array( WIND_ecmwf['data'] )
-        # self.UPA        = UPA['data']
-        # self.WIND_situ  = WIND_situ['data']
-        # self.WIND_ecmwf = WIND_ecmwf['data']
         
         self.which_wind = WIND_situ['which']
         self.task = task
@@ -164,8 +198,10 @@ class SMData(Dataset):
     def get_modality_data_size(self, data = None, asdict = False):
         
         if self.task == 'reco':
+            ''' In this case, wind speed is a scalar value '''
             N_situ = np.int32(1)
         elif self.task == 'class':
+            ''' In this case, wind speed is a categorical value '''
             N_situ = np.int32(self.nclasses)
         #end
         
@@ -187,14 +223,7 @@ class SMData(Dataset):
     #end
     
     def to_tensor(self):
-        
-        # for i in range(self.nsamples):
-            
-        #     self.UPA[i] = torch.Tensor(self.UPA[i]).type(self.dtype)
-        #     self.WIND_situ[i] = torch.Tensor(self.WIND_situ[i]).type(self.dtype)
-        #     self.WIND_ecmwf[i] = torch.Tensor(self.WIND_ecmwf[i]).type(self.dtype)
-        # #end
-        
+                
         self.UPA = torch.Tensor(self.UPA).type(self.dtype).to(device)
         self.WIND_ecmwf = torch.Tensor(self.WIND_ecmwf).type(self.dtype).to(device)
         self.WIND_situ = torch.Tensor(self.WIND_situ).type(self.dtype).to(device)
@@ -207,8 +236,11 @@ class SMData(Dataset):
         class_ws = torch.zeros_like(ws).to(device)
         
         if self.nclasses == 3:
-            
             '''
+            Division in classes according to the number of classes.
+            This division is made by hand according to the Beaufort 
+            scale grades, thus rather empirical
+            
             3 CLASSES :
                 0 : No wind [0, 1, 2]
                 1 : Mild wind [3, 4, 5]
@@ -260,6 +292,10 @@ class SMData(Dataset):
 
 
 class TISMData(Dataset):
+    '''
+    Dataset class that serves the purpose of preparing the data 
+    as design matrices and not time series
+    '''
     
     def __init__(self, path_data, dtype = torch.float32):
         
