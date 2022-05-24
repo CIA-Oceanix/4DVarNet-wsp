@@ -29,7 +29,7 @@ import pytorch_lightning as pl
 from sklearn.metrics import r2_score
 
 from tutls import NormLoss, xavier_weights_initialization
-from dutls import MMData, TISMData
+from dutls import SMData, TISMData
 from gutls import plot_UPA, plot_WS, plot_WS_scatter
 
 if torch.cuda.is_available():
@@ -91,8 +91,8 @@ class LitModel(pl.LightningModule):
             data_UPA = batch[0].reshape(batch_size, N)
             data_ws  = batch[1].reshape(batch_size, Nu)
         else:
-            data_UPA = batch[1].reshape(batch_size * FORMAT_SIZE, N)
-            data_ws  = batch[3].reshape(batch_size * FORMAT_SIZE, Nu)
+            data_UPA = batch[0].reshape(batch_size * FORMAT_SIZE, N)
+            data_ws  = batch[2].reshape(batch_size * FORMAT_SIZE, Nu)
         #end
         
         '''Produce the masks according to the data sparsity patterns'''
@@ -124,10 +124,10 @@ class LitModel(pl.LightningModule):
         
         if phase == 'test':
             
-            data_UPA = self.undo_preprocess(data_UPA, self.preprocess_params['y'])
-            reco_UPA = self.undo_preprocess(reco_UPA, self.preprocess_params['y'])
-            data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['u'])
-            reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['u'])
+            data_UPA = self.undo_preprocess(data_UPA, self.preprocess_params['upa'])
+            reco_UPA = self.undo_preprocess(reco_UPA, self.preprocess_params['upa'])
+            data_ws  = self.undo_preprocess(data_ws,  self.preprocess_params['wind_situ'])
+            reco_ws  = self.undo_preprocess(reco_ws,  self.preprocess_params['wind_situ'])
             outputs = { 'y_data' : data_UPA, 'y_reco' : reco_UPA,
                         'u_data' : data_ws,  'u_reco' : reco_ws
             }
@@ -205,7 +205,7 @@ DATA_TITLE  = '2011'
 PLOTS       = False
 RUNS        = 10
 COLOCATED   = False
-TAYLOR_DS   = False
+TAYLOR_DS   = True
 TRAIN       = True
 TEST        = True
 
@@ -243,11 +243,7 @@ else:
 '''
 Initialize the performance metrics data structures
 '''
-windspeed_rmses = {
-        'only_SAR'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
-        'only_UPA'  : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS), 'aggr' : 0.},
-        'colocated' : {'u' : np.zeros(RUNS), 'u_x' : np.zeros(RUNS), 'u_y' : np.zeros(RUNS)},
-}
+windspeed_rmses = {'u' : np.zeros(RUNS), 'aggr' : np.float32(0.)}
 predictions = list()
 
 
@@ -255,22 +251,22 @@ for run in range(RUNS):
     print('\n------\nRun {}'.format(run))
     
     if TAYLOR_DS:
-        PATH_DATA = os.path.join( pathlib.Path(PATH_DATA).parent, 'Taylor_et_al_2020' )
-        train_set = TISMData(os.path.join(PATH_DATA, 'train'))
-        test_set  = TISMData(os.path.join(PATH_DATA, 'test'))
+        PATH_DATA = os.path.join( pathlib.Path(PATH_DATA).parent, 'Taylor_2020' )
+        train_set = TISMData(os.path.join(PATH_DATA, 'ours', 'train'))
+        test_set  = TISMData(os.path.join(PATH_DATA, 'ours', 'test'))
+        val_set   = TISMData(os.path.join(PATH_DATA, 'ours', 'val'))
     else:
-        train_set = MMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
-        test_set  = MMData(os.path.join(PATH_DATA, 'test_only_UPA'), WIND_VALUES, '2011')
-        
-        val_set = MMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
-        val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
+        train_set = SMData(os.path.join(PATH_DATA, 'train'), WIND_VALUES, '2011')
+        test_set  = SMData(os.path.join(PATH_DATA, 'test'), WIND_VALUES, '2011')
+        val_set   = SMData(os.path.join(PATH_DATA, 'val'), WIND_VALUES, '2011')
     #end
     
     train_loader = DataLoader(train_set, batch_size = BATCH_SIZE, shuffle = True, num_workers = 8)
+    val_loader = DataLoader(val_set, batch_size = BATCH_SIZE, shuffle = False, num_workers = 8)
     test_loader  = DataLoader(test_set, batch_size = test_set.__len__(), shuffle = False, num_workers = 8)
     
-    N  = train_set.get_modality_data_size('y')
-    Nu = train_set.get_modality_data_size('u')
+    N  = train_set.get_modality_data_size('upa')
+    Nu = train_set.get_modality_data_size('wind_situ')
     
     ''' MODEL TRAIN '''
     if TRAIN:
@@ -360,7 +356,7 @@ for run in range(RUNS):
         
         print('R² score = {:.4f}'.format(r2_metric))
         print('RMSE     = {:.4f}'.format(pred_error_metric))
-        windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
+        windspeed_rmses['u'][run] = pred_error_metric
         
         predictions.append( u_reco )
     #end
@@ -369,7 +365,7 @@ for run in range(RUNS):
 preds = torch.Tensor( np.median( np.array(predictions), axis = 0 ) )
 wdata = torch.Tensor( u_data )
 windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = True)
-windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
+windspeed_rmses['aggr'] = windspeed_baggr
 
 
 ''' SERIALIZE THE HYPERPARAMETERS IN A JSON FILE, with the respective perf metric '''
@@ -395,9 +391,9 @@ filestream.close()
 pickle.dump(windspeed_rmses, open(os.path.join(os.getcwd(), 'Evaluation', '{}.pkl'.format(MODEL_NAME)), 'wb'))
 
 with open( os.path.join(os.getcwd(), 'Evaluation', '{}.txt'.format(MODEL_NAME)), 'w' ) as f:
-    f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-    f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
-                                                  windspeed_rmses['only_UPA']['u'].std()))
+    f.write('Minimum    ; {:.4f}\n'.format(windspeed_rmses['u'].min()))
+    f.write('Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['u'].mean(),
+                                                  windspeed_rmses['u'].std()))
     f.write('Median     ; {:.4f}\n'.format(windspeed_baggr))
 f.close()
 
