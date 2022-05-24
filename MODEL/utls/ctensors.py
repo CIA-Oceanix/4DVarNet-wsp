@@ -1,4 +1,15 @@
 
+'''
+EXPERIMENTAL
+------------
+
+Class that wraps torch.Tensor class so to have data structures that
+conveniently manages missing data, by masking nans and produces
+binary integer masks accordingly
+
+'''
+
+
 import torch
 
 class CTensor(torch.Tensor):
@@ -8,7 +19,7 @@ class CTensor(torch.Tensor):
         
         self.data = torch.Tensor(data)
     #end
-        
+    
     def remove_nans(self):
         
         self.data[self.data.isnan()] = 0.
