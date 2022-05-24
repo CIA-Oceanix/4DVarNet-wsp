@@ -228,7 +228,7 @@ if TAYLOR_DS: # NE PAS TOUCHER !
     WINDMAP_WD  = 1e-6
 else:
     EPOCHS      = 200
-    BATCH_SIZE  = 128
+    BATCH_SIZE  = 32
     LATENT_DIM  = 20
     DROPOUT     = 0.
     WEIGHT_DATA = 0.5
