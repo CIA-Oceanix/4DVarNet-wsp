@@ -348,8 +348,8 @@ class TISMData(Dataset):
         
         for i in range(self.nsamples):
             
-            self.Y[i]     = torch.Tensor(self.Y[i]).type(self.dtype)
-            self.U[i]     = torch.Tensor([self.U[i]]).type(self.dtype)
+            self.Y[i] = torch.Tensor(self.Y[i]).type(self.dtype).to(device)
+            self.U[i] = torch.Tensor([self.U[i]]).type(self.dtype).to(device)
         #end
     #end
 #end
