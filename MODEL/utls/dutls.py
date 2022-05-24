@@ -299,16 +299,16 @@ class TISMData(Dataset):
     
     def __init__(self, path_data, dtype = torch.float32):
         
-        UPA  = pickle.load( open( os.path.join(path_data, 'UPA_SITU__Taylor_et_al_2020.pkl'), 'rb' ) )
-        WIND = pickle.load( open( os.path.join(path_data, 'WIND_label_SITU__Taylor_et_al_2020.pkl'), 'rb' ) )
+        UPA  = pickle.load( open( os.path.join(path_data, 'UPA.pkl'), 'rb' ) )
+        WIND = pickle.load( open( os.path.join(path_data, 'WIND.pkl'), 'rb' ) )
         
-        self.Y = UPA['data']
-        self.U = WIND['data']
+        self.Y = UPA
+        self.U = WIND
         self.dtype = dtype
         
         self.preprocess_params = {
-                'y' : UPA['nparms'],
-                'u' : WIND['nparms']
+                'upa'       : [88.5989, 19.817999999999998],
+                'wind_situ' : [20.71, 0.402755]
         }
         
         assert self.Y.__len__() == self.U.__len__()
@@ -337,7 +337,7 @@ class TISMData(Dataset):
             if asdict:
                 return N
             else:
-                return N['y'], N['u']
+                return N['upa'], N['wind_situ']
             #end
         else:
             return N[data]
