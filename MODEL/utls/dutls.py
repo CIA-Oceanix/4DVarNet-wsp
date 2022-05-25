@@ -299,16 +299,16 @@ class TISMData(Dataset):
     
     def __init__(self, path_data, dtype = torch.float32):
         
-        UPA  = pickle.load( open( os.path.join(path_data, 'UPA.pkl'), 'rb' ) )
-        WIND = pickle.load( open( os.path.join(path_data, 'WIND.pkl'), 'rb' ) )
+        UPA  = pickle.load( open( os.path.join(path_data, 'UPA_2011.pkl'), 'rb' ) )
+        WIND = pickle.load( open( os.path.join(path_data, 'WIND_label_SITU_2011.pkl'), 'rb' ) )
         
-        self.Y = UPA
-        self.U = WIND
+        self.Y = UPA['data']
+        self.U = WIND['data']
         self.dtype = dtype
         
         self.preprocess_params = {
-                'upa'       : [88.5989, 19.817999999999998],
-                'wind_situ' : [20.71, 0.402755]
+                'upa'       : UPA['nparms'],
+                'wind_situ' : WIND['nparms']
         }
         
         assert self.Y.__len__() == self.U.__len__()
@@ -329,8 +329,8 @@ class TISMData(Dataset):
     def get_modality_data_size(self, data = None, asdict = False):
         
         N = {
-            'y' : np.int32(self.Y[0].shape[0]),
-            'u' : np.int32(1)
+            'upa'       : np.int32(self.Y[0].shape[0]),
+            'wind_situ' : np.int32(1)
         }
         
         if data is None:
@@ -346,11 +346,8 @@ class TISMData(Dataset):
     
     def to_tensor(self):
         
-        for i in range(self.nsamples):
-            
-            self.Y[i] = torch.Tensor(self.Y[i]).type(self.dtype).to(device)
-            self.U[i] = torch.Tensor([self.U[i]]).type(self.dtype).to(device)
-        #end
+        self.Y = torch.Tensor(self.Y).type(self.dtype).to(device)
+        self.U = torch.Tensor(self.U).type(self.dtype).to(device)
     #end
 #end
 
