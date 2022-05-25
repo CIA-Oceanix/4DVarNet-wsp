@@ -1,0 +1,19 @@
+{
+	"WIND_VALUES" : "SITU",
+	"DATA_TITLE"  : "2011",
+	
+	"RUNS"        : 3,
+	"EPOCHS"      : 2,
+	"TRAIN"       : true,
+	"TEST"        : true,
+	"PLOTS"       : false,
+	"TIMEDEP"     : "TI",
+	
+	"BATCH_SIZE"  : 32,
+	"LATENT_DIM"  : 20,
+	"DROPOUT"     : 0.0,
+	"WEIGHT_DATA" : 0.5,
+	"WEIGHT_PRED" : 1.5,
+	"MODEL_LR"    : 1e-3,
+	"MODEL_WD"    : 1e-6
+}
