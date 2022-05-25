@@ -1,7 +1,7 @@
 
 print('\n\n')
 print('###############################################')
-print('AE SM TI UPA')
+print('FC-AE SM UPA')
 print('###############################################')
 print('\n\n')
 
@@ -15,7 +15,6 @@ sys.path.append( os.path.join( os.getcwd(), '4dvar' ) )
 
 import pickle
 import numpy as np
-from datetime import datetime
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-white')
 import json
@@ -232,6 +231,17 @@ PATH_MODEL  = os.getenv('PATH_MODEL')
 
 PATH_MODEL = os.path.join(PATH_MODEL, MODEL_NAME)
 if not os.path.exists(PATH_MODEL): os.mkdir(PATH_MODEL)
+
+
+# Introduction
+print('Experiment:')
+print('----------------------------------------------------------------------')
+print(f'Time dependence                   : {TIMEDEP}')
+print(f'Runs                              : {RUNS}')
+print(f'Path Target                       : {PATH_MODEL}')
+print(f'Model                             : {MODEL_NAME}')
+print('----------------------------------------------------------------------')
+
 
 '''
 Initialize the performance metrics data structures
