@@ -1108,8 +1108,8 @@ for run in range(RUNS):
             
             print('R² score = {:.4f}'.format(r2_metric))
             print('RMSE     = {:.4f}'.format(pred_error_metric))
-            windspeed_rmses['only_UPA']['u'][run] = pred_error_metric
-            windspeed_rmses['only_UPA']['u_c'][run] = pred_error_metric_central
+            windspeed_rmses['u'][run] = pred_error_metric
+            windspeed_rmses['u_c'][run] = pred_error_metric_central
             r2_scores.append(r2_metric)
             predictions.append( u_reco )
         #end
@@ -1122,7 +1122,7 @@ if TASK == 'reco':
     preds = torch.Tensor( np.median( np.array(predictions), axis = 0 ) )
     wdata = torch.Tensor( u_data )
     windspeed_baggr = NormLoss((preds - wdata), mask = None, divide = True, rmse = True)
-    windspeed_rmses['only_UPA']['aggr'] = windspeed_baggr
+    windspeed_rmses['aggr'] = windspeed_baggr
 
 elif TASK == 'class':
     ''' Unlike regression, where we compute the median, for classification
@@ -1180,11 +1180,11 @@ if TASK == 'reco':
     
     ''' WRITE TO TEXT SYNTHESIS REPORT OF PERFORMANCE '''
     with open( os.path.join(os.getcwd(), 'Evaluation', f'{MODEL_NAME}.txt'), 'w' ) as filename:
-        filename.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].min()))
-        filename.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u'].mean(),
-                                                      windspeed_rmses['only_UPA']['u'].std()))
-        filename.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['only_UPA']['u_c'].mean(),
-                                                      windspeed_rmses['only_UPA']['u_c'].std()))
+        filename.write('Minimum          ; {:.4f}\n'.format(windspeed_rmses['u'].min()))
+        filename.write('(all) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['u'].mean(),
+                                                      windspeed_rmses['u'].std()))
+        filename.write('(cen) Mean ± std ; {:.4f} ± {:.4f}\n'.format(windspeed_rmses['u_c'].mean(),
+                                                      windspeed_rmses['u_c'].std()))
         filename.write('Median           ; {:.4f}\n'.format(windspeed_baggr))
         filename.write('R² score         ; {:.2f}\n'.format(np.array(r2_scores).mean()))
     filename.close()
