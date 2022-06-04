@@ -940,7 +940,7 @@ for run in range(RUNS):
             ''' For the case reconstruction, we can build the auto-encoder
                 with torch.nn.Sequential modules. For flexibility in developement
                 better to construct explicit models as stated in the beginning '''
-            if 1 == 0:
+            if True:
                 encoder = torch.nn.Sequential(
                     nn.Conv1d(N_DATA, 128, kernel_size = 3, padding = 'same'),
                     nn.Dropout(DROPOUT),
@@ -960,10 +960,12 @@ for run in range(RUNS):
                 Phi = AutoEncoder(encoder, decoder)
             #end
             
-            if TASK == 'reco':
-                Phi = AutoEncoder_regression(N_DATA, LATENT_DIM)                
-            elif TASK == 'class':
-                Phi = AutoEncoder_classification(N_DATA, LATENT_DIM, N_SITU)
+            if 1 == 0:
+                if TASK == 'reco':
+                    Phi = AutoEncoder_regression(N_DATA, LATENT_DIM)                
+                elif TASK == 'class':
+                    Phi = AutoEncoder_classification(N_DATA, LATENT_DIM, N_SITU)
+                #end
             #end
                         
         elif PRIOR == 'CN':
