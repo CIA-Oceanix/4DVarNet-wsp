@@ -190,7 +190,7 @@ class L2NormLoss(nn.Module):
 #end
 
 
-def CrossEntropyLoss(label, guess, mask = None, dformat = 'mtn', divide = True):
+def CE_Loss(label, guess, mask = None, dformat = 'mnt', divide = True, return_nitems = False):
     '''
     Cross entropy loss between categorical ground-truth and output integers.
     
@@ -199,9 +199,9 @@ def CrossEntropyLoss(label, guess, mask = None, dformat = 'mtn', divide = True):
     Parameters
     ----------
     label : ``torch.Tensor`` 
-        Ground-truths
+        Ground-truths, int in [0, C)
     guess : ``torch.Tensor``
-        Output labels
+        Output raw probabilities (no softmax applied)
     mask : ``torch.Tensor``
         Binary mask to manage missing values. Defaults to ``None``, in this case
         the mask is a full rank tensor of ones.
@@ -217,28 +217,35 @@ def CrossEntropyLoss(label, guess, mask = None, dformat = 'mtn', divide = True):
     
     '''
     
+    if guess.__class__ is not torch.Tensor:
+        guess = torch.Tensor(guess)
+    if label.__class__ is not torch.Tensor:
+        label = torch.Tensor(label)
+    #end
+    
     if mask is None:
         mask = torch.ones_like(label)
     #end
     
+    # Convert one-hot encoding to categorical labels for targets
     if dformat == 'mtn':
-        softmax_dim = 2
+        label = label.transpose(1,2)
+        guess = guess.transpose(1,2)
+        
+        if label.shape[1] > 1:
+            label = torch.argmax(label, dim = 1).reshape(label.shape[0], label.shape[2])
+        #end
+        
     elif dformat == 'mnt':
-        softmax_dim = 1
+        if label.shape[1] > 1:
+            label = torch.argmax(label, dim = 1).reshape(label.shape[0], label.shape[2])
+        #end
     #end
     
-    guess = torch.nn.functional.log_softmax(guess, dim = softmax_dim)
-    
-    # LOOP ON TIMESTEPS ???
-    negative_loglikelihood = -(label * guess)
-    argument = (negative_loglikelihood.mul(mask)).pow(2)
-    
-    # FIRST SUMMATION : ON FEATURES !!!
-    if dformat == 'mtn':
-        loss = argument.sum(dim = -1)
-    elif dformat == 'mnt':
-        loss = argument.sum(dim = 1)
-    #end
+    # For 3D data, cross entropy has shape (batch_size, timesteps)
+    # No features
+    # So the only sum saturates the dimension dim = 1
+    argument = nn.functional.cross_entropy(guess, label, reduction = 'none')
     
     no_items = False
     nitems = 1
@@ -252,9 +259,9 @@ def CrossEntropyLoss(label, guess, mask = None, dformat = 'mtn', divide = True):
         nitems = mask.sum() / num_features
     #end
     
-    loss = loss.sum(dim = 0).sum() # SUMMATION OVER BATCH FIRST AND OVER TIME THEN
+    loss = argument.sum(dim = 0).sum() # SUMMATION OVER BATCH FIRST AND OVER TIME THEN
     
-    if divide:
+    if divide: # Batch-wise effective (according to mask) average
         loss = loss.div(nitems)
     #end
     
@@ -262,7 +269,44 @@ def CrossEntropyLoss(label, guess, mask = None, dformat = 'mtn', divide = True):
         nitems = 0
     #end
     
+    if return_nitems:
+        return loss, nitems
+    else:
+        return loss
+    #end
+    
     return loss
 #end
 
 
+class CrossEntropyLoss(nn.Module):
+    
+    def __init__(self, divide = True, dformat = 'mnt', return_nitems = False):
+        super(CrossEntropyLoss, self).__init__()
+        
+        self.divide = divide
+        self.return_nitems = return_nitems
+        self.dformat = dformat
+    #end
+    
+    def forward(self, guess, target, mask = None):
+        
+        return CE_Loss(guess, target, mask = mask,
+                       divide = self.divide, dformat = self.dformat,
+                       return_nitems = False)
+    #end
+#end
+
+
+def MulticlassAccuracy(guess, label, dformat = 'mtn'):
+    
+    if guess.__class__ is not torch.Tensor:
+        guess = torch.Tensor(guess)
+    if label.__class__ is not torch.Tensor:
+        label = torch.Tensor(label)
+    #end
+    
+    batch_accuracy = (guess == label).float().mean(dim = 1).mean(dim = 0)
+    return batch_accuracy
+    
+#end

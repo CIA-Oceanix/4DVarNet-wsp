@@ -182,7 +182,7 @@ class SMData(Dataset):
         self.dtype    = dtype
         
         if convert_to_tensor: self.to_tensor()
-        if task == 'class': self.to_onehot()
+        if task == 'class': self.real_to_category()
     #end
     
     def __len__(self):
@@ -229,7 +229,7 @@ class SMData(Dataset):
         self.WIND_situ = torch.Tensor(self.WIND_situ).type(self.dtype).to(device)
     #end
     
-    def to_onehot(self):
+    def real_to_category(self):
         
         ws = self.WIND_situ
         ws = self.undo_preprocess(ws, 'wind_situ')
@@ -275,7 +275,7 @@ class SMData(Dataset):
             
             batch_size = class_ws.shape[0]
             time_format = class_ws.shape[1]
-            zeros_missing = torch.zeros(batch_size, time_format, 1).to(device)
+            zeros_missing = torch.zeros(batch_size, time_format, 1).type(torch.LongTensor).to(device)
             class_ws = torch.cat( (class_ws, zeros_missing), dim = 2 )
         #end
         
