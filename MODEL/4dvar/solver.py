@@ -430,8 +430,36 @@ class Model_Var_Cost(nn.Module):
             #end
         #end
         
-        pass
         return loss
+    #end
+#end
+
+
+class Model_Distance_Pdist(nn.Module):
+    
+    def __init__(self, m_MeasureDistMetric, ShapeData, n_bins_histogram,
+                 dim_obs = 1, dim_obs_channel = 1, dim_state = 1,):
+        super(Model_Distance_Pdist, self).__init__()
+        
+        self.m_MeasureDistMetric = m_MeasureDistMetric
+        self.n_bins_histogram = n_bins_histogram
+        
+        self.dim_obs_channel = dim_obs_channel
+        self.dim_obs = dim_obs
+        
+        if dim_state > 0 :
+            self.dim_state = dim_state
+        else:
+            self.dim_state = ShapeData[0]
+        #end
+        
+        pass
+    #end
+    
+    def forward(self, guess, target):
+        
+        var_cost_cat = self.m_MeasureDistMetric(guess, target)
+        return var_cost_cat
     #end
 #end
 
@@ -443,10 +471,17 @@ class Model_Var_Cost(nn.Module):
 class Solver_Grad_4DVarNN(nn.Module):
     
     def __init__(self , prior, mod_H, m_Grad, m_NormObs, m_NormPhi, ShapeData, n_iter_grad,
-                 stochastic = False, varcost_learnable_params = False):
+                 stochastic = False, varcost_learnable_params = False,
+                 probabilistic = False, pddmeasure = None, n_bins_histogram = None):
         super(Solver_Grad_4DVarNN, self).__init__()
-                
+        
         self.Phi = prior
+        self.probabilistic = probabilistic
+        self.n_bins_histogram = n_bins_histogram
+        
+        if probabilistic and pddmeasure is None:
+            raise ValueError('probabilistic requires a probability distribution distance measure')
+        #end
         
         if m_NormObs == None:
             m_NormObs =  Model_WeightedL2Norm()
@@ -456,11 +491,13 @@ class Solver_Grad_4DVarNN(nn.Module):
         
         self.model_H = mod_H
         self.model_Grad = m_Grad
-        self.model_VarCost = Model_Var_Cost(m_NormObs, m_NormPhi, ShapeData, mod_H.dim_obs, mod_H.dim_obs_channel,
+        self.model_VarCost = Model_Var_Cost(m_NormObs, m_NormPhi, ShapeData, 
+                                            mod_H.dim_obs, mod_H.dim_obs_channel,
                                             learnable_params = varcost_learnable_params)
+        self.model_PDDMeasure = Model_Distance_Pdist(pddmeasure, ShapeData, n_bins_histogram)
         
         self.stochastic = stochastic
-
+        
         with torch.no_grad():
             self.n_grad = int(n_iter_grad)
         #end
@@ -523,6 +560,15 @@ class Solver_Grad_4DVarNN(nn.Module):
         # data_fidelty   : [m, N, T]
         # regularization : [m, N, T]
         var_cost = self.model_VarCost(data_fidelty, regularization, mask)
+        
+        if self.probabilistic:
+            x_hist = x[:, -self.n_bins_histogram:, :]
+            phi_x_hist = self.Phi(x)[:, -self.n_bins_histogram:, :]
+            
+            var_cost_cat = self.model_PDDMeasure(x_hist, phi_x_hist)
+            var_cost += var_cost_cat
+        #end
+        
         var_cost_grad = torch.autograd.grad(var_cost, x, create_graph = True)[0]
         
         return var_cost, var_cost_grad
